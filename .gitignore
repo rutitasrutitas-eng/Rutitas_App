@@ -1,0 +1,55 @@
+# Sistema operativo
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editores y configuración local
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+*.bak
+
+# Logs y temporales
+*.log
+/logs/
+/tmp/
+/temp/
+/.cache/
+
+# Variables privadas, credenciales y llaves
+.env
+.env.*
+!.env.example
+/secrets/
+/credentials/
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
+*.keystore
+*.jks
+*.mobileprovision
+
+# Dependencias y artefactos generados (si se incorporan herramientas)
+**/node_modules/
+**/vendor/
+**/dist/
+**/coverage/
+**/.vite/
+**/.gradle/
+**/.kotlin/
+**/build/
+**/local.properties
+**/*.iml
+**/.cxx/
+**/.externalNativeBuild/
+**/__pycache__/
+**/.venv/
+**/.pytest_cache/
+
+# Estado local de infraestructura generado
+*.tfstate
+*.tfstate.*

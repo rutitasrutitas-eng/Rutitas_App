@@ -1,8 +1,7 @@
 # Especificación — Arquitectura base Móvil
 
 **ID:** ARCH-MOV-BASE  
-**Decisión:** `propuesto` · **Aprobación:** pendiente  
-**Ejecución:** `no_iniciado` · **Verificación:** `no_ejecutada`
+**Decisión:** `propuesto` · **Ejecución:** `no_iniciado` · **Verificación:** `no_ejecutada` · **Tipo:** `—`
 
 ## 1. Objetivo
 
@@ -15,6 +14,21 @@ Incluye capas, estado, navegación como capacidad, ciclo de vida, errores, confi
 ## 3. Fuentes y contexto tecnológico
 
 Fuentes: Constitución y AGENTS propios del proyecto, instrucciones académicas y análisis de ejemplos SDD móviles. La copia experimental inspeccionada usa React/TypeScript/Vite/Capacitor; se registra únicamente como observación de una copia candidata, no como decisión o requisito. No se presume plataforma objetivo ni backend aprobado.
+
+### 3.1 Actores genéricos
+
+- Equipo de arquitectura y revisión técnica del proyecto Movil.
+- Responsables de accesibilidad, seguridad, privacidad, operación y calidad, cuando sean designados.
+- Autoridad de producto y autoridad de ratificación, aún `PENDIENTE_DE_DESIGNAR`.
+- Agentes y skills de revisión documental, sin autoridad de aprobación.
+
+### 3.2 Supuestos
+
+- La Constitución y AGENTS locales son candidatos y no están ratificados.
+- La plataforma, el stack, el almacenamiento y la distribución siguen sin decidir.
+- No existe backend aprobado ni contratos con Backend.
+- Las decisiones abiertas se registran en `docs/decisiones-pendientes.md`.
+- La entrega permanece en fase exclusivamente documental.
 
 ## 4. Requisitos arquitectónicos
 
@@ -35,11 +49,15 @@ Fuentes: Constitución y AGENTS propios del proyecto, instrucciones académicas 
 
 ## 5. Criterios de aceptación de la especificación
 
-- Describe capacidades arquitectónicas móviles generales y verificables documentalmente.
-- No incorpora pantallas, journeys, historias ni identificadores funcionales de Rutitas.
-- No impone React, Kotlin, Flutter, Capacitor, proveedor, almacenamiento ni librerías.
-- Alinea seguridad, accesibilidad, configuración y errores con la Constitución propuesta.
-- Separa evidencia documental de implementación/pruebas futuras.
+| ID | Criterio documental |
+|---|---|
+| AC-MOV-01 | Describe capacidades arquitectónicas móviles generales y verificables documentalmente. |
+| AC-MOV-02 | No incorpora pantallas, journeys, historias ni identificadores funcionales de Rutitas. |
+| AC-MOV-03 | No impone React, Kotlin, Flutter, Capacitor, proveedor, almacenamiento ni librerías. |
+| AC-MOV-04 | Alinea seguridad, accesibilidad, configuración y errores con la Constitución propuesta. |
+| AC-MOV-05 | Separa evidencia documental de implementación y pruebas futuras. |
+
+Los riesgos arquitectónicos y sus controles se documentan en [plan.md](plan.md#riesgos-y-pendientes); esta especificación no los duplica.
 
 ## 6. Decisiones pendientes
 

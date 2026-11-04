@@ -2,15 +2,15 @@
 
 Todas estas decisiones siguen **sin aprobación humana**. No impiden preparar la arquitectura base documental; sí pueden bloquear especificación detallada o ejecución futura.
 
-| ID | Decisión pendiente | Evidencia/autoridad requerida |
-|---|---|---|
-| MOVIL-D01 | Ratificación de Constitución y AGENTS propios | Versión, fecha, aprobadores y acta/registro |
-| MOVIL-D02 | Repositorio canónico de Móvil | Ruta, propietarios, rama, flujo de revisión |
-| MOVIL-D03 | Responsables de arquitectura, revisión, seguridad y release | Asignación humana expresa |
-| MOVIL-D04 | Requisitos no funcionales y restricciones | Capacidad, plataforma, disponibilidad, privacidad y presupuesto pertinentes |
-| MOVIL-D05 | Selección de stack y herramientas | Comparativa y decisión aprobada; los repositorios de clase no obligan |
-| MOVIL-D06 | Límites entre Móvil y el proyecto hermano | Contrato de integración acordado entre equipos |
-| MOVIL-D07 | Seguridad, datos, calidad y pruebas futuras | Criterios, controles y responsables |
-| MOVIL-D08 | Evolución de nombre `task.md`, estructura y activación de agentes/skills | Revisión docente, convención aprobada |
+| ID | Pregunta pendiente | Opciones sin seleccionar | Evidencia/autoridad requerida | Recomendación no vinculante | Consecuencia si permanece abierta | Aprobador | Estado |
+|---|---|---|---|---|---|---|---|
+| MOVIL-D01 | ¿Se ratifican Constitución y AGENTS propios? | Ratificar, ajustar o rechazar | Versión, fecha, aprobadores y acta/registro | No asumir ratificación | Bloquea obligatoriedad normativa | PENDIENTE_DE_DESIGNAR | propuesto |
+| MOVIL-D02 | ¿Cuál es el repositorio canónico? | Seleccionar ruta y flujo aprobados | Ruta, propietarios, rama, flujo de revisión | No fijar repositorio por inferencia | Bloquea ejecución futura | PENDIENTE_DE_DESIGNAR | propuesto |
+| MOVIL-D03 | ¿Quién cubre arquitectura, seguridad y release? | Designar roles humanos | Asignación humana expresa | No asignar roles a agentes | Bloquea aprobaciones y aceptación | PENDIENTE_DE_DESIGNAR | propuesto |
+| MOVIL-D04 | ¿Qué restricciones no funcionales aplican? | Definir capacidad, privacidad y presupuesto | Necesidades y fuente identificable | Esperar alcance confirmado | Limita diseño proporcional | PENDIENTE_DE_DESIGNAR | propuesto |
+| MOVIL-D05 | ¿Qué stack y herramientas se aprueban? | Comparar alternativas pertinentes | Comparativa y decisión aprobada | No adoptar ejemplos de clase | Bloquea scaffold y controles técnicos | PENDIENTE_DE_DESIGNAR | propuesto |
+| MOVIL-D06 | ¿Qué límites rigen la integración? | Acordar contrato documental | Acuerdo entre equipos | No definir endpoints | Bloquea contratos específicos | PENDIENTE_DE_DESIGNAR | propuesto |
+| MOVIL-D07 | ¿Qué controles de seguridad, datos y calidad aplican? | Definir controles proporcionales | Criterios, controles y responsables | No declarar controles implementados | Bloquea validación técnica futura | PENDIENTE_DE_DESIGNAR | propuesto |
+| MOVIL-D08 | ¿Se acepta `task.md` y la configuración OpenCode? | Mantener, ajustar o rechazar convención | Revisión docente y convención aprobada | Mantener tareas sin ejecutar y agentes de solo lectura | Bloquea cambio de fase | PENDIENTE_DE_DESIGNAR | propuesto |
 
 Esta entrega **no** decide endpoints, modelos de producto, pantallas, proveedor cloud, base de datos ni operaciones funcionales.
