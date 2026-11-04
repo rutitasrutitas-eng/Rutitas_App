@@ -52,3 +52,10 @@ Fuentes detalladas: [documentos consultados](docs/fuentes-consultadas.md). Estad
 - Constitución pendiente de ratificación; 12 requisitos conservados; 7 tareas continúan `no_iniciado` / `no_ejecutada`.
 - Los cinco agentes y cinco skills permanecen como definiciones documentales de OpenCode, sin ejecución ni compatibilidad Codex acreditada.
 - No se implementó una app Android, no se crearon pantallas/funcionalidades, no se seleccionó stack y no se ejecutaron tareas.
+
+
+## Publicación inicial verificada en GitHub (2026-11-04)
+
+- Se confirmó el push normal de la rama main a https://github.com/rutitasrutitas-eng/Rutitas_App y se verificó que el HEAD remoto coincide con el commit local.
+- El repositorio es público; la publicación de la autoría histórica fue autorizada por el usuario.
+- Esta constancia registra únicamente la publicación documental. La Constitución sigue pendiente de ratificación, las siete tareas permanecen sin ejecutar y no se realizó implementación ni selección tecnológica.

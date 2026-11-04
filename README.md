@@ -53,4 +53,4 @@ La integración con Backend se describe como propuesta en [`docs/integracion-ent
 
 ## Repositorio
 
-Repositorio oficial asignado: [Rutitas_App](https://github.com/rutitasrutitas-eng/Rutitas_App). La documentación no implica que el push haya sido confirmado.
+Repositorio oficial asignado: [Rutitas_App](https://github.com/rutitasrutitas-eng/Rutitas_App). La rama `main` está publicada en GitHub; el HEAD remoto se verificó después del push.
