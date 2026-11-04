@@ -6,3 +6,9 @@
 4. **Tecnologías observadas**: React/TypeScript/Vite/Capacitor en un prototipo candidato; .NET/Kotlin/AWS en ejemplos académicos. No se adoptan automáticamente.
 
 No se dispone aquí del acuerdo humano que ratifique la arquitectura, seleccione stack, designe aprobadores o autorice implementación. Las transcripciones académicas pueden contener errores ASR.
+
+## Comunicación posterior del equipo (2026-11-04)
+
+- Según el usuario, el profesor exige **NoSQL** y las alternativas de nube son **Azure, AWS y Google Cloud**. La fuente primaria aún debe anexarse.
+- ASP.NET Core 10/C# y Google Cloud fueron expresados como **preferencias del equipo Backend**; Firestore, Cloud Run, Maps y Firebase Authentication se evalúan como alternativas técnicas, no como selecciones oficiales.
+- Esta información de otro proyecto se registra en [el anexo de impacto](propuestas-futuras/impacto-propuesta-backend.md), sin imponer stack o funcionalidades a Móvil.

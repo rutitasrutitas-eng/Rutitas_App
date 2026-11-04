@@ -54,3 +54,12 @@ La integración con Backend se describe como propuesta en [`docs/integracion-ent
 ## Repositorio
 
 Repositorio oficial asignado: [Rutitas_App](https://github.com/rutitasrutitas-eng/Rutitas_App). La rama `main` está publicada en GitHub; el HEAD remoto se verificó después del push.
+
+## Dependencias tecnológicas futuras del Backend (2026-11-04)
+
+El equipo Backend estudia **ASP.NET Core 10/C# + Google Cloud Run + Firestore NoSQL**, con Google Maps Platform y eventual Firebase Authentication. El profesor exige NoSQL según lo comunicado por el usuario y restringe la nube a Azure/AWS/Google Cloud; las fuentes docentes primarias están pendientes. Estas **preferencias de Backend no eligen tecnología para la aplicación móvil**.
+
+- [Impacto informativo del Backend en la futura integración](docs/propuestas-futuras/impacto-propuesta-backend.md).
+- [Integración todavía pendiente de acuerdo](docs/integracion-entre-proyectos.md).
+
+El anexo no integra endpoints en la especificación SDD móvil ni cambia los 12 requisitos o las 7 tareas pendientes.

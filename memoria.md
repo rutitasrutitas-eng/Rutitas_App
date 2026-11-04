@@ -59,3 +59,9 @@ Fuentes detalladas: [documentos consultados](docs/fuentes-consultadas.md). Estad
 - Se confirmó el push normal de la rama main a https://github.com/rutitasrutitas-eng/Rutitas_App y se verificó que el HEAD remoto coincide con el commit local.
 - El repositorio es público; la publicación de la autoría histórica fue autorizada por el usuario.
 - Esta constancia registra únicamente la publicación documental. La Constitución sigue pendiente de ratificación, las siete tareas permanecen sin ejecutar y no se realizó implementación ni selección tecnológica.
+
+## Registro exploratorio de dependencia Backend (2026-11-04)
+
+- El usuario reportó la obligación académica de NoSQL y la restricción de nube a Azure, AWS o Google Cloud; no se aportó todavía fuente docente primaria.
+- La preferencia por ASP.NET Core 10/C#, Cloud Run y Firestore corresponde al **proyecto Backend**, no al stack de esta app. Maps y Firebase Authentication son alternativas de integración, no decisiones aprobadas.
+- Se añadió [anexo informativo de impacto](docs/propuestas-futuras/impacto-propuesta-backend.md) sin alterar especificaciones funcionales, 12 requisitos, 7 tareas ni la Constitución/espejo. No hubo código, despliegue ni ejecución de pruebas de producto; la publicación documental queda pendiente de las validaciones y el push normal.

@@ -14,3 +14,9 @@ Todas estas decisiones siguen **sin aprobación humana**. No impiden preparar la
 | MOVIL-D08 | ¿Se acepta `task.md` y la configuración OpenCode? | Mantener, ajustar o rechazar convención | Revisión docente y convención aprobada | Mantener tareas sin ejecutar y agentes de solo lectura | Bloquea cambio de fase | PENDIENTE_DE_DESIGNAR | propuesto |
 
 Esta entrega **no** decide endpoints, modelos de producto, pantallas, proveedor cloud, base de datos ni operaciones funcionales.
+
+## Registro de propuesta externa (2026-11-04)
+
+Se documentó una **preferencia no aprobada del equipo Backend** por ASP.NET Core 10/C#, Google Cloud Run, Firestore NoSQL, Google Maps Platform y posible Firebase Authentication. El usuario comunicó que el profesor exige **NoSQL** y limita la nube a Azure/AWS/Google Cloud; fuente primaria pendiente. Ninguna de estas preferencias selecciona automáticamente el stack de Móvil. Permanecen abiertos `MOVIL-D05` y `MOVIL-D06`.
+
+[Impacto exploratorio de la propuesta Backend](propuestas-futuras/impacto-propuesta-backend.md).
