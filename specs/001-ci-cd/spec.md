@@ -12,3 +12,5 @@
 Los criterios de aceptación de compilación y despliegue requieren ejecución real y referencia a SHA + URL de GitHub Actions. Las plataformas y proveedores siguen sujetos a decisión humana.
 
 - **CI-05:** validar la sintaxis YAML de ambos workflows en CI antes de los controles documentales.
+
+**Evidencia de CI parcial (2026-11-11):** GitHub Actions parseó ambos YAML, validó SDD y aprobó Gitleaks. Detección no encontró Gradle Wrapper y omitió el build. Por eso la verificación del alcance completo CI/CD-001 permanece `no_ejecutada`; los requisitos de app real y CD siguen abiertos.

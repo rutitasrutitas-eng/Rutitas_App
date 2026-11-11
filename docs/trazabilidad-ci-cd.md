@@ -15,9 +15,9 @@
 ## Evidencia de integración
 
 - Rama: `feature/ci-cd-001-bootstrap` desde `main`.
-- Commit de integración: pendiente de crear.
-- Pull Request: pendiente de abrir.
-- GitHub Actions / Gitleaks: pendiente de ejecutar.
+- Commit(s) de integración: `4bef814eb48d165f0e0bc17afc955085a174d364` (integración) y `70cdf35add430b2b5c2dcb08791fceb930047d06` (validador YAML).
+- Pull Request: [#1 abierto hacia main](https://github.com/rutitasrutitas-eng/Rutitas_App/pull/1); aprobación/merge pendientes.
+- PR run: [43058284454](https://github.com/rutitasrutitas-eng/Rutitas_App/actions/runs/43058284454), éxito. Sintaxis de `ci.yml`/`package-release.yml`, SDD y Gitleaks aprobados; detección Gradle exitosa; job Android omitido por falta de wrapper.
 - Plataforma/stack móvil: no seleccionado; la ruta Android solo opera si se detecta Gradle Wrapper.
 - Constitución / ARCH-MOV-01..12 / 7 tareas: sin modificación; tareas permanecen `no_iniciado` y `no_ejecutada`.
 

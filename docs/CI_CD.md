@@ -16,3 +16,11 @@ La correspondencia requisito → control → evidencia y sus límites está en [
 El job Android es una ruta condicional para un futuro proyecto Gradle: si no hay wrapper, no compila ni ejecuta pruebas de app. Esto no ratifica Android como plataforma del producto; la plataforma y el stack móvil siguen pendientes. El empaquetado manual no se ejecuta durante esta revisión.
 
 La etapa inicial también parsea los dos archivos YAML con la biblioteca estándar YAML de Ruby; los resultados se registran en la matriz de trazabilidad.
+
+## Resultados remotos verificados — 2026-11-11
+
+- Rama: `feature/ci-cd-001-bootstrap`; HEAD al validar: `70cdf35add430b2b5c2dcb08791fceb930047d06`.
+- [PR #1 hacia main](https://github.com/rutitasrutitas-eng/Rutitas_App/pull/1), abierto y sin fusionar.
+- [GitHub Actions, run PR 43058284454](https://github.com/rutitasrutitas-eng/Rutitas_App/actions/runs/43058284454): job SDD/YAML/Gitleaks **success**; detección Gradle **success**; build/lint/tests Android **skipped** porque no hay `gradlew`/proyecto.
+- Gitleaks: **success**, sin hallazgos reportados. La validación CI-05 parseó ambos workflows YAML sin error.
+- App y AAB no verificados; no se ejecutó el workflow manual ni se publicó en Google Play.
