@@ -90,3 +90,5 @@ Fuentes detalladas: [documentos consultados](docs/fuentes-consultadas.md). Estad
 - Se añadieron spec, plan, tasks, checklist, trazabilidad y reporte de auditoría. No existen Gradle Wrapper, código Kotlin/Java, tests ni manifiestos; build, auditoría de dependencias de app y CD real permanecen no verificados.
 - La Constitución/espejo siguen idénticas y `PENDIENTE_RATIFICACION`; ARCH-MOV-01..12 y siete tareas base permanecen intactos (`no_iniciado` / `no_ejecutada`). No se eligió plataforma/stack ni se creó infraestructura.
 - Validación remota, Gitleaks y Dependency Review de la rama CI/CD-002 pendientes del PR; no se ejecutó AAB ni publicación Play.
+
+- Corrección de CI/CD-002: el primer Dependency Review móvil falló por configuración externa (`Dependency graph is disabled`), no por vulnerabilidades. No cambié settings del repositorio; el job quedó condicionado a detección de proyecto real y la brecha se registra para habilitar Dependency Graph antes de añadir dependencias.

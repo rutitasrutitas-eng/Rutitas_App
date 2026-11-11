@@ -3,7 +3,8 @@
 - [x] Auditoría y respaldo verificable.
 - [x] Rama nueva apilada sin cambios a main ni PR #1.
 - [x] Workflow YAML revisado; CI valida sintaxis localmente en runner.
-- [ ] CI, Gitleaks y Dependency Review aprobados en el PR final.
+- [ ] CI y Gitleaks aprobados en el PR final.
+- [ ] Dependency Review ejecutado con graph habilitado y manifiestos reales (no aplica/NO VERIFICADO mientras no exista proyecto).
 - [ ] Lint, build y tests de app real (bloqueados: no hay Gradle Wrapper/proyecto).
 - [ ] Aprobación y merge humano del PR.
 - [ ] Plataforma/stack, package id, versionCode/versionName, firma y environment aprobados.

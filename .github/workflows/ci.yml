@@ -110,7 +110,8 @@ jobs:
           retention-days: 14
   dependency-review:
     name: Revisar dependencias del Pull Request
-    if: github.event_name == 'pull_request'
+    needs: detect-project
+    if: github.event_name == 'pull_request' && needs.detect-project.outputs.present == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
