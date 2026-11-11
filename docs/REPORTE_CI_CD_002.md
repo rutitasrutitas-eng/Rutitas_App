@@ -1,6 +1,6 @@
 # Reporte CI/CD-002 — Rutitas App Móvil
 
-**Fecha:** 2026-11-11. **Estado:** revisión/CI en progreso; no fusionado ni publicado.
+**Fecha:** 2026-11-11. **Estado:** CI verificado; PR abierto y sin fusionar ni publicar.
 
 ## 1. Auditoría inicial
 
@@ -33,14 +33,14 @@ El job SDD/YAML/Gitleaks se conserva. Dependency Review solo corre en PR. La det
 
 - Estado inicial CI/CD-001 (no esta rama): [run 43058860869](https://github.com/rutitasrutitas-eng/Rutitas_App/actions/runs/43058860869) pasó parser YAML de ambos workflows, SDD, Gitleaks y detección; Android lint/build/tests quedaron `skipped` al no existir wrapper.
 - No se pudieron ejecutar pruebas de app: no hay código ni tests. No se generó AAB ni se publicó en Google Play.
-- Verificación CI/CD-002, Gitleaks y Dependency Review: pendiente del PR de esta rama.
+- CI/CD-002: [run 43063702820](https://github.com/rutitasrutitas-eng/Rutitas_App/actions/runs/43063702820) en commit cbed0081673b97bdfd060eb3c8ca48e8d8a60829: parser YAML, SDD y Gitleaks `success`; detección Gradle `success`; Dependency Review y build Android `skipped` por no existir proyecto/manifiestos.
 - Auditoría de dependencias de la app: NO VERIFICADA; no hay manifests ni paquete real. Dependency Review solo cubrirá cambios de manifiestos en el PR.
 
 ## 5. Resultados, PR y estados
 
 - PR CI/CD-001: https://github.com/rutitasrutitas-eng/Rutitas_App/pull/1 (abierto, base `main`, no fusionado).
-- PR CI/CD-002: pendiente de abrir hacia `feature/ci-cd-001-bootstrap`.
-- SHA final y URL de Actions de CI/CD-002: se completarán tras publicar y validar el PR.
+- PR CI/CD-002: [#2](https://github.com/rutitasrutitas-eng/Rutitas_App/pull/2), abierto hacia `feature/ci-cd-001-bootstrap`, sin fusionar.
+- Commit verificado: `cbed0081673b97bdfd060eb3c8ca48e8d8a60829`. El primer run [43061238655](https://github.com/rutitasrutitas-eng/Rutitas_App/actions/runs/43061238655) falló únicamente porque Dependency Graph está deshabilitado; el log confirma que no fue un hallazgo de vulnerabilidad.
 - No se generaron artefactos de app. No hay resultado de tests instrumentados o unitarios.
 
 ## 6. Requisitos cubiertos y pendientes
