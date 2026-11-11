@@ -87,5 +87,11 @@ Fuentes detalladas: [documentos consultados](docs/fuentes-consultadas.md). Estad
 - En el árbol revisado de `main` continúan únicamente el SDD y los workflows; **no se halló código de aplicación ni proyectos compilables**. No se generan proyectos ficticios ni se afirman pruebas de producto.
 - Sigue sin Gradle Wrapper ni código Android en main; queda pendiente integrar el proyecto real y comprobar lint, tests y APK.
 - La nueva rama de trabajo CI/CD-003 no autoriza automáticamente un merge a `main`, publicación en Google Play ni despliegue a nube. La Constitución permanece `PENDIENTE_RATIFICACION`; se conservan requisitos/tareas de arquitectura base.
-- Pendientes: obtener el código funcional del equipo, revisar si hay cambios locales, guardar respaldo verificable, aprobar SDK y stack, habilitar Dependency Graph, configurar protección de rama y realizar CI real con evidencias por SHA.
-- La verificación de YAML/Actions y los nuevos resultados deben registrarse **después** del push y la ejecución remota; este registro no los considera aprobados por anticipado.
+- Antes de editar, el worktree estaba limpio. Se respaldaron todas las refs en ../_Rutitas_CI_CD_003_Backups/2026-11-11_ci003/Rutitas_App.bundle (SHA-256 3463E5CB3F103D6412D8C5A85267239D40864252C90E06C9B31FC3394DDE8467) y se verificó el bundle. Las versiones originales de .github/workflows/ci.yml y memoria.md quedaron fuera del repo en ../_Rutitas_CI_CD_003_Backup_local/Rutitas_Movil/ con SHA-256 4D34A3CD72B246F8B79226B0476A15933495DC0B23D3BE7531902F2E468E1717 y 853B8CCB114381EFF5F9965E0449D074155A035757293455DCCC0D45A6E35CEF.
+
+### Publicación y verificación remota
+
+- Rama: feature/ci-cd-003-mobile-integration; commit verificado: d30aa2a51f2449e0927cfda54a7c2975c9a55db9.
+- PR #3: https://github.com/rutitasrutitas-eng/Rutitas_App/pull/3, abierto hacia main y sin fusionar.
+- Actions PR run: https://github.com/rutitasrutitas-eng/Rutitas_App/actions/runs/43081378215. Validación YAML, SDD y Gitleaks: success; detección Gradle: success; build/lint/tests: skipped por ausencia de Gradle Wrapper/proyecto Android.
+- No se afirma que pruebas de producto hayan pasado. Pendientes: integrar proyecto Android real, aprobar SDK/stack, habilitar Dependency Graph y revisar CI con evidencia por SHA. No se cambió main, Constitución, requisitos ni estados de arquitectura base; no hubo publicación a Google Play.
