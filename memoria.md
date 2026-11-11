@@ -71,3 +71,12 @@ Fuentes detalladas: [documentos consultados](docs/fuentes-consultadas.md). Estad
 - Se confirmó el push normal de esta actualización documental a la rama main del repositorio propio.
 - El HEAD remoto se comprobó coincidente con el commit local; la revisión directa de GitHub confirmó los documentos del paquete.
 - No se implementó software ni se ejecutaron tareas; propuestas tecnológicas y el inventario de endpoints y las alternativas tecnológicas permanecen exploratorios.
+
+## Integración CI/CD-001 (2026-11-11)
+
+- Fuente de archivos: `Rutitas_Pipelines_CI_CD_Preparados.zip`; se integró únicamente la carpeta Móvil a la rama `feature/ci-cd-001-bootstrap`, creada desde `main` tras volver a comparar `origin/main`.
+- Se añadieron workflows SDD/Gitleaks, detección de Gradle Wrapper, compilación condicional y preparación manual de AAB; junto con `docs/CI_CD.md` y `specs/001-ci-cd/`.
+- Se añadió `docs/trazabilidad-ci-cd.md` para relacionar CI-01..04, CD-01 y SEG-01 con controles, evidencia y límites. El empaquetado manual no se ejecutó.
+- No existe Gradle Wrapper/proyecto Android ni código de app en este repositorio; no se afirma build/test de app. La ruta Android es condicional y no ratifica plataforma ni stack móvil.
+- La Constitución y su espejo no se modificaron y siguen `PENDIENTE_RATIFICACION`. Se conservaron ARCH-MOV-01..12 y las siete tareas de arquitectura base (`no_iniciado` / `no_ejecutada`).
+- No hay parser YAML instalado localmente; la sintaxis/estructura se comprobará al reconocer el workflow GitHub Actions. El escaneo local de patrones de secretos en los workflows encontró cero coincidencias; Gitleaks remoto está pendiente. PR y GitHub Actions pendientes. No se implementaron pantallas o funcionalidades, ni se publicó en Google Play.

@@ -1,0 +1,104 @@
+name: Rutitas Mobile - CI SDD y Android
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, 'feature/ci-cd-*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: mobile-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sdd-and-security:
+    name: SDD y escaneo de secretos (no compila Android)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validar documentos SDD existentes
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in README.md AGENTS.md memoria.md .specify/memory/constitution.md \
+              specs/000-arquitectura-base/spec.md specs/000-arquitectura-base/plan.md \
+              specs/000-arquitectura-base/task.md; do
+            test -s "$file" || { echo "::error::Falta o está vacío: $file"; exit 1; }
+          done
+          echo 'SDD documental presente: NO equivale a Constitución ratificada.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Gitleaks (historial Git completo)
+        run: >-
+          docker run --rm --volume "$GITHUB_WORKSPACE:/repo:ro"
+          ghcr.io/gitleaks/gitleaks:v8.30.0@sha256:691af3c7c5a48b16f187ce3446d5f194838f91238f27270ed36eef6359a574d9 git --redact --exit-code 1 /repo
+
+  detect-project:
+    name: Detectar Gradle Wrapper Android
+    runs-on: ubuntu-latest
+    outputs:
+      present: ${{ steps.detect.outputs.present }}
+      directory: ${{ steps.detect.outputs.directory }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Detectar sin afirmar un build inexistente
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+          wrapper="$(find . -type f -name gradlew -not -path './.git/*' -print -quit)"
+          if [ -z "$wrapper" ]; then
+            echo 'present=false' >> "$GITHUB_OUTPUT"
+            echo 'Android todavía NO tiene Gradle Wrapper; no se compiló ni probó la app.' >> "$GITHUB_STEP_SUMMARY"
+          else
+            dir="$(dirname "$wrapper")"
+            test -f "$dir/gradle/wrapper/gradle-wrapper.jar" || { echo '::error::Falta gradle-wrapper.jar'; exit 1; }
+            echo 'present=true' >> "$GITHUB_OUTPUT"
+            echo "directory=${dir#./}" >> "$GITHUB_OUTPUT"
+          fi
+
+  android-build:
+    name: Android - lint, unit tests y APK debug
+    needs: [sdd-and-security, detect-project]
+    if: needs.detect-project.outputs.present == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+      - name: Análisis, pruebas y compilación real
+        shell: bash
+        env:
+          ANDROID_DIR: ${{ needs.detect-project.outputs.directory }}
+        run: |
+          set -euo pipefail
+          cd "$ANDROID_DIR"
+          chmod +x ./gradlew
+          ./gradlew --no-daemon --stacktrace lintDebug testDebugUnitTest assembleDebug
+      - name: Conservar evidencia (no publicación Play)
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: android-ci-reports
+          path: |
+            **/build/reports/**
+            **/build/test-results/**
+            **/build/outputs/apk/debug/*.apk
+          if-no-files-found: warn
+          retention-days: 14

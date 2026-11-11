@@ -1,0 +1,52 @@
+name: Rutitas Mobile - preparar AAB (NO publicar Google Play)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: AAB para revisión humana
+    runs-on: ubuntu-latest
+    environment: android-release
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Exigir Android real
+        id: project
+        shell: bash
+        run: |
+          set -euo pipefail
+          wrapper="$(find . -type f -name gradlew -not -path './.git/*' -print -quit)"
+          test -n "$wrapper" || { echo '::error::No existe proyecto Android; abortando'; exit 1; }
+          dir="$(dirname "$wrapper")"
+          test -f "$dir/gradle/wrapper/gradle-wrapper.jar" || exit 1
+          echo "directory=${dir#./}" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+      - name: Generar AAB para revisión
+        env:
+          ANDROID_DIR: ${{ steps.project.outputs.directory }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$ANDROID_DIR"
+          chmod +x ./gradlew
+          ./gradlew --no-daemon lintRelease testDebugUnitTest bundleRelease
+          echo 'No se ha firmado, distribuido ni publicado en Play mediante este workflow.' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: android-aab-review-only
+          path: '**/build/outputs/bundle/release/*.aab'
+          if-no-files-found: error
+          retention-days: 7
