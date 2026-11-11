@@ -23,6 +23,12 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Validar sintaxis YAML de los workflows
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -e 'require "yaml"; ARGV.each { |file| YAML.load_file(file, aliases: true) }; puts "Sintaxis YAML válida."' \
+            .github/workflows/ci.yml .github/workflows/package-release.yml
       - name: Validar documentos SDD existentes
         shell: bash
         run: |

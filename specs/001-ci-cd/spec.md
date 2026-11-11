@@ -10,3 +10,5 @@
 - **SEG-01:** permisos mínimos, no credenciales en Git, revisión humana de entornos.
 
 Los criterios de aceptación de compilación y despliegue requieren ejecución real y referencia a SHA + URL de GitHub Actions. Las plataformas y proveedores siguen sujetos a decisión humana.
+
+- **CI-05:** validar la sintaxis YAML de ambos workflows en CI antes de los controles documentales.

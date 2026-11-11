@@ -20,3 +20,5 @@
 - GitHub Actions / Gitleaks: pendiente de ejecutar.
 - Plataforma/stack móvil: no seleccionado; la ruta Android solo opera si se detecta Gradle Wrapper.
 - Constitución / ARCH-MOV-01..12 / 7 tareas: sin modificación; tareas permanecen `no_iniciado` y `no_ejecutada`.
+
+| CI-05 | `.github/workflows/ci.yml` → parseo con Ruby/Psych de `ci.yml` y `package-release.yml` | Ambos archivos se parsean sin error en el run enlazado | Comprueba sintaxis YAML; no sustituye aprobación de cambios del pipeline |

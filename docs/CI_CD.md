@@ -14,3 +14,5 @@
 La correspondencia requisito → control → evidencia y sus límites está en [trazabilidad CI/CD-001](trazabilidad-ci-cd.md). Esta automatización es una propuesta local de Móvil y queda sujeta a revisión humana; no altera ARCH-MOV-01..12 ni sus siete tareas futuras.
 
 El job Android es una ruta condicional para un futuro proyecto Gradle: si no hay wrapper, no compila ni ejecuta pruebas de app. Esto no ratifica Android como plataforma del producto; la plataforma y el stack móvil siguen pendientes. El empaquetado manual no se ejecuta durante esta revisión.
+
+La etapa inicial también parsea los dos archivos YAML con la biblioteca estándar YAML de Ruby; los resultados se registran en la matriz de trazabilidad.
