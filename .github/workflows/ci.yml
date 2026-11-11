@@ -2,7 +2,7 @@ name: Rutitas Mobile - CI SDD y Android
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, 'feature/ci-cd-001-bootstrap']
   push:
     branches: [main, 'feature/ci-cd-*']
   workflow_dispatch:
@@ -108,3 +108,15 @@ jobs:
             **/build/outputs/apk/debug/*.apk
           if-no-files-found: warn
           retention-days: 14
+  dependency-review:
+    name: Revisar dependencias del Pull Request
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Bloquear vulnerabilidades altas introducidas
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294
+        with:
+          fail-on-severity: high
