@@ -95,3 +95,14 @@ Fuentes detalladas: [documentos consultados](docs/fuentes-consultadas.md). Estad
 - PR #3: https://github.com/rutitasrutitas-eng/Rutitas_App/pull/3, abierto hacia main y sin fusionar.
 - Actions PR run: https://github.com/rutitasrutitas-eng/Rutitas_App/actions/runs/43081378215. Validación YAML, SDD y Gitleaks: success; detección Gradle: success; build/lint/tests: skipped por ausencia de Gradle Wrapper/proyecto Android.
 - No se afirma que pruebas de producto hayan pasado. Pendientes: integrar proyecto Android real, aprobar SDK/stack, habilitar Dependency Graph y revisar CI con evidencia por SHA. No se cambió main, Constitución, requisitos ni estados de arquitectura base; no hubo publicación a Google Play.
+
+
+## Auditoría de seguridad Android Play (2026-11-12)
+
+- Se auditó android-play-internal en GitHub Settings. Configuración guardada y comprobada tras recargar: revisor requerido DxRxXgSo (cuenta confirmada por el usuario), Prevent self-review activado, bypass administrativo desactivado, despliegues limitados a main.
+- La página Actions mostró cero secretos de repositorio y cero secretos del entorno consultado; no se abrió ni registró ningún valor. El endpoint de permisos de colaborador del conector respondió 403; el selector de GitHub ofreció el revisor como opción, y el usuario confirmó la identidad autorizada.
+- En main, play-internal.yml no existe. El PR #4 (head 264d4f3c73682900b41ce7c39174ee93dbd2d451) lo propone, pero sigue abierto y sin fusionar. Su workflow manual requiere confirmación explícita, rama main, environment y carga como draft; no se ejecutó.
+- android-release no aparece en la lista de entornos aunque package-release.yml de main lo referencia. Debe configurarse antes de usar empaquetado; la versión del workflow en el PR #4 propone firma y requiere secretos que no están presentes en la vista de Settings.
+- Se detectaron etiquetas mutables de acciones externas en los workflows; revisar y fijar a SHA completo antes de uso sensible.
+- GitHub indicó que main no tiene protección de rama; se registró sin modificarla.
+- No se ejecutaron workflows, pruebas, builds, publicación Play ni merge. La Constitución continúa PENDIENTE_RATIFICACION. La auditoría completa está en [docs/AUDITORIA_ANDROID_PLAY_INTERNAL.md](docs/AUDITORIA_ANDROID_PLAY_INTERNAL.md) y su PR documental #5.
