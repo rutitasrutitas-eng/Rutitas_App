@@ -22,3 +22,7 @@
 - [ ] Ejecutar despliegue de pruebas internas solo con autorización explícita futura y evidencia verificable.
 
 No se ejecutó CI/CD ni distribución durante esta auditoría. Evidencia: [reporte](../../docs/AUDITORIA_ANDROID_PLAY_INTERNAL.md), PR documental #5.
+
+
+### Precisión posterior: CI del PR de auditoría
+La frase “No se ejecutó CI/CD” se refiere a que no se despachó manualmente CI/CD ni se inició distribución. La apertura del PR #5 sí activó CI automáticamente: [run 43332604438](https://github.com/rutitasrutitas-eng/Rutitas_App/actions/runs/43332604438) success para SDD/YAML/Gitleaks y detección Gradle; build Android skipped por falta de wrapper. Play y package-release no se ejecutaron.
