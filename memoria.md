@@ -106,3 +106,7 @@ Fuentes detalladas: [documentos consultados](docs/fuentes-consultadas.md). Estad
 - Se detectaron etiquetas mutables de acciones externas en los workflows; revisar y fijar a SHA completo antes de uso sensible.
 - GitHub indicó que main no tiene protección de rama; se registró sin modificarla.
 - No se ejecutaron workflows, pruebas, builds, publicación Play ni merge. La Constitución continúa PENDIENTE_RATIFICACION. La auditoría completa está en [docs/AUDITORIA_ANDROID_PLAY_INTERNAL.md](docs/AUDITORIA_ANDROID_PLAY_INTERNAL.md) y su PR documental #5.
+
+
+### Precisión de ejecución automática del PR documental
+Al abrir el PR #5, GitHub ejecutó automáticamente CI (run 43332604438, success): validación SDD/YAML y Gitleaks, detección Gradle aprobadas; build Android omitido porque main no contiene wrapper. No se despacharon workflows manuales ni de distribución.
