@@ -56,3 +56,14 @@ En los workflows revisados, checkout, upload-artifact y la imagen de Gitleaks es
 ## Resultado
 
 No se ejecutaron pruebas, builds, Actions ni workflows de distribución. No se aprobó ningún deployment, no se hizo merge y no se publicó en Google Play. Esta auditoría verifica configuración documental/visual; no acredita una ejecución de CI/CD.
+
+
+## Actualización de CI automática del PR documental — 2026-11-12
+
+La frase anterior “No se ejecutaron Actions” se refiere a que esta auditoría no despachó workflows manuales ni de distribución. La creación/actualización del PR #5 activó automáticamente CI de documentación:
+
+- Run [43332604438](https://github.com/rutitasrutitas-eng/Rutitas_App/actions/runs/43332604438): concluido con éxito para el SHA 7ff6c63125a59c904f1c6fc88fde6ea0dc9ed6e5.
+- Documentos, validación YAML y Gitleaks: success.
+- Detección de Gradle Wrapper: success.
+- Build/lint/tests Android: skipped; main no contiene wrapper/proyecto Android.
+- No hubo ejecución de play-internal ni package-release, publicación a Play, aprobación de deployment o merge.
