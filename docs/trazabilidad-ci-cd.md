@@ -21,3 +21,17 @@
 - PR run: [43058284454](https://github.com/rutitasrutitas-eng/Rutitas_App/actions/runs/43058284454), éxito. Sintaxis de `ci.yml`/`package-release.yml`, SDD y Gitleaks aprobados; detección Gradle exitosa; job Android omitido por falta de wrapper.
 - Plataforma/stack móvil: no seleccionado; la ruta Android solo opera si se detecta Gradle Wrapper.
 - Constitución / ARCH-MOV-01..12 / 7 tareas: sin modificación; tareas permanecen `no_iniciado` y `no_ejecutada`.
+
+
+## Evidencia de controles de entorno — 2026-11-12
+
+| Requisito / control | Estado observado | Evidencia y límite |
+|---|---|---|
+| SEG-01: revisión humana del environment | Verificado para android-play-internal | Reviewer requerido DxRxXgSo confirmado por el usuario; prevent self-review activado; bypass administrativo desactivado. Revisado después de recargar Settings. |
+| SEG-01: limitar origen de publicación | Verificado | Única rama permitida: main; 0 etiquetas. No se ejecutó el workflow. |
+| SEG-01: secretos fuera de Git | Pendiente para el flujo Android del PR #4 | Settings mostró cero secretos de repositorio y cero secretos del entorno; ningún valor fue leído. Configuración operativa pendiente. |
+| CD-01: distribución interna | No verificada / no ejecutada | play-internal.yml está solo en el PR #4 abierto, no fusionado; es workflow_dispatch y requiere confirmación exacta. |
+| CI/CD: environment de firma | Pendiente | android-release no aparece en la lista de entornos; package-release.yml de main lo referencia. |
+| SEG-02: acciones inmutables | Parcial | checkout, upload-artifact y Gitleaks están fijados a SHA/digest; hay otras acciones con etiquetas mutables. |
+
+El informe detallado está en [AUDITORIA_ANDROID_PLAY_INTERNAL.md](AUDITORIA_ANDROID_PLAY_INTERNAL.md). Esta evidencia es de configuración visual y revisión estática de workflows; no sustituye logs de ejecución, aprobación humana de un deployment ni ratificación constitucional. El PR documental #5 es la propuesta que incorpora este registro; no está fusionado.
