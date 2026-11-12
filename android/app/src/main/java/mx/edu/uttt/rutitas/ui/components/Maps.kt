@@ -9,6 +9,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -226,10 +227,24 @@ fun RutitasMap(
                         val i = pos.toInt().coerceAtMost(pts.size - 2)
                         val f = (pos - i).toDouble()
                         val a = pts[i]; val b = pts[i + 1]
-                        Marker(
-                            state = MarkerState(LatLng(a.latitude + (b.latitude - a.latitude) * f, a.longitude + (b.longitude - a.longitude) * f)),
-                            title = "Conductor"
-                        )
+
+val conductorPosition = LatLng(
+    a.latitude + (b.latitude - a.latitude) * f,
+    a.longitude + (b.longitude - a.longitude) * f
+)
+
+val conductorMarkerState = remember {
+    MarkerState(position = conductorPosition)
+}
+
+SideEffect {
+    conductorMarkerState.position = conductorPosition
+}
+
+Marker(
+    state = conductorMarkerState,
+    title = "Conductor"
+)
                     }
                 }
             }
