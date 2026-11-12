@@ -14,3 +14,10 @@ Los criterios de aceptación de compilación y despliegue requieren ejecución r
 
 
 **Evidencia de CI parcial (2026-11-11):** GitHub Actions parseó ambos YAML, validó SDD y aprobó Gitleaks. Detección no encontró Gradle Wrapper y omitió el build. Por eso la verificación del alcance completo CI/CD-001 permanece `no_ejecutada`; los requisitos de app real y CD siguen abiertos.
+
+
+## Verificación posterior de seguridad — 2026-11-12
+
+La protección del environment android-play-internal se configuró y verificó visualmente: revisor requerido DxRxXgSo (cuenta confirmada por el usuario), autoaprobación impedida, bypass administrativo desactivado y rama permitida exclusivamente main. Este control está listo como configuración, pero no se ha ejecutado un deployment y no acredita el funcionamiento end-to-end del CD.
+
+Pendientes de cierre de seguridad: crear/proteger android-release antes de empaquetado firmado; aprovisionar secretos cuando corresponda por canal seguro; fijar las acciones externas todavía referenciadas por etiquetas mutables. play-internal.yml solo está en el PR #4 abierto, no en main. Sin ejecutar workflows ni modificar la arquitectura base.
