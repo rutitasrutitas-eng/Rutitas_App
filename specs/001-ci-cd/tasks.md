@@ -8,3 +8,12 @@
 - [ ] Agregar software, tests y contratos reales al repositorio.
 - [ ] Confirmar y aprobar stack, proveedores, environments y secretos.
 - [ ] Ejecutar y verificar CD real, con rollback.
+
+
+## Auditoría de environment y distribución interna — 2026-11-12
+- [x] Proteger android-play-internal: revisor confirmado, no autoaprobación, sin bypass y solo main.
+- [x] Registrar hallazgos en el reporte y trazabilidad documental, en rama separada.
+- [ ] Definir y proteger android-release.
+- [ ] Confirmar secretos requeridos de manera segura y ejecutar solo tras autorización específica.
+- [ ] Fijar acciones por SHA revisado.
+- [ ] Revisar PR #4 y decidir su integración mediante aprobación humana.
