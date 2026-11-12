@@ -35,3 +35,7 @@ Distinguir el estado por ref: play-internal.yml no existe en main; el PR #4 prop
 En las acciones externas aún fijadas a etiquetas mutables (setup-java@v6, setup-android@v4, setup-gradle@v6, emulator-runner@v2, upload-google-play@v1), se recomienda fijar SHAs completos revisados antes de operaciones sensibles. checkout, upload-artifact y Gitleaks se observan fijados en los archivos revisados. GitHub muestra main sin protección de rama; no se cambió.
 
 Detalle y límites en [Auditoría Android Play](AUDITORIA_ANDROID_PLAY_INTERNAL.md). Esta verificación no ejecutó Actions ni distribución y no modifica la Constitución, que sigue pendiente de ratificación.
+
+
+### CI automático del PR documental #5 — estado observado
+La apertura del PR #5 activó automáticamente [run 43332604438](https://github.com/rutitasrutitas-eng/Rutitas_App/actions/runs/43332604438) para SHA 7ff6c63125a59c904f1c6fc88fde6ea0dc9ed6e5: SDD/YAML/Gitleaks y detección de Gradle **success**; build Android **skipped** por ausencia de wrapper en main. El run no ejecutó distribución. Este run corresponde al SHA indicado, no se presenta como evidencia de ejecución de un workflow de Play.
