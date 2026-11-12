@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Carpeta temporal de la cámara: la foto se mueve al almacenamiento privado y este archivo se borra -->
+    <cache-path name="photos" path="photos/" />
+</paths>
