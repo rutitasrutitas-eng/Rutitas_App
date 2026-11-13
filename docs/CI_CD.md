@@ -24,3 +24,27 @@ La etapa inicial también parsea los dos archivos YAML con la biblioteca estánd
 - [GitHub Actions, run PR 43058284454](https://github.com/rutitasrutitas-eng/Rutitas_App/actions/runs/43058284454): job SDD/YAML/Gitleaks **success**; detección Gradle **success**; build/lint/tests Android **skipped** porque no hay `gradlew`/proyecto.
 - Gitleaks: **success**, sin hallazgos reportados. La validación CI-05 parseó ambos workflows YAML sin error.
 - App y AAB no verificados; no se ejecutó el workflow manual ni se publicó en Google Play.
+
+
+## Auditoría del entorno de Play interno — 2026-11-12
+
+Configuración visualmente verificada después de recargar GitHub: android-play-internal conserva revisores requeridos (DxRxXgSo, identidad confirmada por el usuario), Prevent self-review activado, bypass administrativo desactivado y única rama permitida main. No se detectaron secretos de repositorio ni para el entorno en la vista de GitHub Settings; no se consultaron valores.
+
+Distinguir el estado por ref: play-internal.yml no existe en main; el PR #4 propone un workflow manual, limitado a main y con confirmación explícita, que carga a internal con status draft. El PR #4 sigue abierto, sin fusionar, y este workflow no se ejecutó. package-release.yml en main no firma ni publica; sí referencia android-release, que no aparece en la lista de entornos. Configurarlo y protegerlo es pendiente.
+
+En las acciones externas aún fijadas a etiquetas mutables (setup-java@v6, setup-android@v4, setup-gradle@v6, emulator-runner@v2, upload-google-play@v1), se recomienda fijar SHAs completos revisados antes de operaciones sensibles. checkout, upload-artifact y Gitleaks se observan fijados en los archivos revisados. GitHub muestra main sin protección de rama; no se cambió.
+
+Detalle y límites en [Auditoría Android Play](AUDITORIA_ANDROID_PLAY_INTERNAL.md). Esta verificación no ejecutó Actions ni distribución y no modifica la Constitución, que sigue pendiente de ratificación.
+
+
+### CI automático del PR documental #5 — estado observado
+La apertura del PR #5 activó automáticamente [run 43332604438](https://github.com/rutitasrutitas-eng/Rutitas_App/actions/runs/43332604438) para SHA 7ff6c63125a59c904f1c6fc88fde6ea0dc9ed6e5: SDD/YAML/Gitleaks y detección de Gradle **success**; build Android **skipped** por ausencia de wrapper en main. El run no ejecutó distribución. Este run corresponde al SHA indicado, no se presenta como evidencia de ejecución de un workflow de Play.
+
+
+### Protecciones administrativas verificadas — 2026-11-12
+
+- `main` está bajo el ruleset activo `Rutitas main: PR review y protección`: PR obligatorio, 1 aprobación, invalidación de revisiones obsoletas, aprobación de alguien distinto del último push, conversaciones resueltas, force-push y eliminación bloqueados, sin bypass.
+- Status checks aún no obligatorios: `main` presenta `sdd-and-security`, `detect-project`, `android-build` (condicional), mientras el PR #4 reporta jobs con otros nombres. Unificar y probar antes de requerirlos.
+- `android-release`: reviewer `DxRxXgSo`, no self-review, no bypass administrativo, solo `main` y cero tags; sin secretos ni variables. `android-play-internal` permanece intacto.
+- PR #4 y #5 siguen abiertos y sin fusionar. No se ejecutaron flujos de publicación ni se consultaron secretos.
+- Actualización y evidencia: [reporte de seguridad](AUDITORIA_ANDROID_PLAY_INTERNAL.md); run documental #5 [43333140707](https://github.com/rutitasrutitas-eng/Rutitas_App/actions/runs/43333140707): SDD/YAML/Gitleaks y detección Gradle success; build Android skipped.
