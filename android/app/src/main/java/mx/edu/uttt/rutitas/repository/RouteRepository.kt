@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import mx.edu.uttt.rutitas.data.SessionManager
 import mx.edu.uttt.rutitas.database.RouteDao
+import mx.edu.uttt.rutitas.database.BookingDao
 import mx.edu.uttt.rutitas.database.RouteEntity
 import mx.edu.uttt.rutitas.database.toDomain
 import mx.edu.uttt.rutitas.domain.Recommender
@@ -20,25 +21,39 @@ import javax.inject.Singleton
 class RouteRepository @Inject constructor(
     private val dao: RouteDao,
     private val api: ApiService,
-    private val session: SessionManager
+    private val session: SessionManager,
+    private val bookingDao: BookingDao
 ) {
-    private val all: Flow<List<Route>> = dao.observeAll().map { list -> list.map { it.toDomain() } }
+    private fun ownedBy(r: RouteEntity, userId: Long?) = userId != null && r.ownerUserId == userId
+    private fun RouteEntity.forSession(userId: Long?) = toDomain().copy(ownedByMe = ownedBy(this, userId))
 
     /** Rutas visibles al pasajero, ordenadas según su horario y zona. */
-    val publicRoutes: Flow<List<Route>> = combine(all, session.state) { routes, s ->
+    val publicRoutes: Flow<List<Route>> = combine(dao.observeAll(), session.state) { routes, s ->
         Recommender.rank(
-            routes.filter { !it.ownedByMe && !it.alternative && it.status != RouteStatus.CANCELLED && it.status != RouteStatus.FINISHED },
+            routes.filter { !ownedBy(it, s.user?.id) && !it.alternative &&
+                it.status != RouteStatus.CANCELLED.name && it.status != RouteStatus.FINISHED.name }
+                .map { it.forSession(s.user?.id) },
             s
         )
     }
 
-    val myRoutes: Flow<List<Route>> = all.map { list -> list.filter { it.ownedByMe } }
+    val myRoutes: Flow<List<Route>> = combine(dao.observeAll(), session.state) { rows, s ->
+        rows.filter { ownedBy(it, s.user?.id) }.map { it.forSession(s.user?.id) }
+    }
 
-    fun observe(id: Long): Flow<Route?> = dao.observe(id).map { it?.toDomain() }
+    fun observe(id: Long): Flow<Route?> = combine(dao.observe(id), bookingDao.observeAll(), session.state) { r, bookings, s ->
+        val userId = s.user?.id
+        val hasBooking = userId != null && bookings.any { b -> b.routeId == id &&
+            (b.ownerUserId == userId || (userId == 0L && b.seeded && b.ownerUserId == null)) }
+        r?.takeIf { ownedBy(it, userId) || hasBooking ||
+            it.status in listOf(RouteStatus.ACTIVE.name, RouteStatus.IN_PROGRESS.name, RouteStatus.INTERRUPTED.name) }
+            ?.forSession(userId)
+    }
 
-    fun alternatives(excludeId: Long): Flow<List<Route>> = all.map { list ->
-        list.filter { !it.ownedByMe && it.id != excludeId && it.status == RouteStatus.ACTIVE && it.seats > 0 }
-            .sortedByDescending { it.alternative }
+    fun alternatives(excludeId: Long): Flow<List<Route>> = combine(dao.observeAll(), session.state) { rows, s ->
+        rows.filter { !ownedBy(it, s.user?.id) && it.id != excludeId &&
+            it.status == RouteStatus.ACTIVE.name && it.seats > 0 }
+            .sortedByDescending { it.alternative }.map { it.forSession(s.user?.id) }
     }
 
     /** Punto de enlace con el backend real: si DEMO_MODE=false descarga rutas y las guarda en Room. */
@@ -56,6 +71,7 @@ class RouteRepository @Inject constructor(
         if (s.user == null) return Result.failure(IllegalStateException("Inicia sesión para publicar."))
         val dep = TimeUtils.toMinutes(departure) ?: return Result.failure(IllegalArgumentException("Hora inválida"))
         delay(400)
+        if (session.current.user?.id != s.user.id) return Result.failure(IllegalStateException("La sesión cambió."))
         val id = dao.insert(
             RouteEntity(
                 origin = origin, destination = destination, departure = TimeUtils.format(dep),
@@ -77,11 +93,13 @@ class RouteRepository @Inject constructor(
     ): Result<Unit> {
         if (session.current.isDisabled) return Result.failure(IllegalStateException("Tu cuenta está inhabilitada. No puedes editar rutas."))
         val r = dao.get(id) ?: return Result.failure(IllegalStateException("No encontramos la ruta."))
+        if (!ownedBy(r, session.current.user?.id)) return Result.failure(IllegalStateException("Esta ruta no es tuya."))
         if (r.status != RouteStatus.ACTIVE.name && r.status != RouteStatus.INTERRUPTED.name) {
             return Result.failure(IllegalStateException("Solo puedes editar rutas que no han iniciado."))
         }
         val dep = TimeUtils.toMinutes(departure) ?: return Result.failure(IllegalArgumentException("Hora inválida"))
         delay(300)
+        if (!ownedBy(r, session.current.user?.id)) return Result.failure(IllegalStateException("La sesión cambió."))
         val newStops = (stops ?: if (origin == r.origin && destination == r.destination) r.stops.split("|") else defaultStops(origin, destination))
             .joinToString("|")
         dao.update(
@@ -98,6 +116,10 @@ class RouteRepository @Inject constructor(
         listOf(if (origin.endsWith("Centro")) origin else "$origin Centro", destination)
 
     suspend fun setStatus(id: Long, status: RouteStatus) {
-        dao.get(id)?.let { dao.update(it.copy(status = status.name)) }
+        val userId = session.current.user?.id ?: return
+        dao.get(id)?.takeIf { ownedBy(it, userId) &&
+            (it.status == RouteStatus.ACTIVE.name || it.status == RouteStatus.INTERRUPTED.name) &&
+            (status == RouteStatus.ACTIVE || status == RouteStatus.INTERRUPTED) }
+            ?.let { dao.update(it.copy(status = status.name)) }
     }
 }

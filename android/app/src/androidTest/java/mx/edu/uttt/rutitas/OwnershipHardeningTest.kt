@@ -8,6 +8,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import mx.edu.uttt.rutitas.data.PrivatePhotoStore
+import mx.edu.uttt.rutitas.data.DemoSeeder
 import mx.edu.uttt.rutitas.data.SessionManager
 import mx.edu.uttt.rutitas.database.*
 import mx.edu.uttt.rutitas.model.*
@@ -52,9 +53,9 @@ class OwnershipHardeningTest {
         login(101)
         bookings = BookingRepository(db.bookingDao(), db.routeDao(), session, db)
         val api = Retrofit.Builder().baseUrl("https://example.invalid/").build().create(ApiService::class.java)
-        routes = RouteRepository(db.routeDao(), api, session)
+        routes = RouteRepository(db.routeDao(), api, session, db.bookingDao())
         driver = DriverRepository(db.routeDao(), db.requestDao(), db.bookingDao(), session, PrivatePhotoStore(context), db)
-        reviews = ReviewRepository(db.reviewDao(), session)
+        reviews = ReviewRepository(db.reviewDao(), session, db.bookingDao(), db.routeDao(), db.requestDao(), db)
     }
 
     @After fun tearDown() { db.close() }
@@ -81,6 +82,8 @@ class OwnershipHardeningTest {
         routes.setStatus(routeId, RouteStatus.CANCELLED)
         assertNotNull(driver.startRoute(routeId))
         driver.advanceRoute(routeId, 4)
+        driver.startWait(routeId)
+        driver.endWait(routeId)
         driver.finishRoute(routeId)
         driver.cancelRoute(routeId)
         bookings.cancel(bookingId)
@@ -93,6 +96,21 @@ class OwnershipHardeningTest {
         assertEquals("CONFIRMED", db.bookingDao().get(bookingId)?.status)
         assertEquals(0, db.bookingDao().get(bookingId)?.progress)
         assertFalse(db.bookingDao().get(bookingId)!!.rated)
+    }
+
+    @Test fun completedRouteIsPrivateExceptToItsPassenger() = runBlocking {
+        val routeId = db.routeDao().insert(route(101))
+        login(102)
+        val bookingId = bookings.reserve(routeId, "Coyote", 1).getOrThrow()
+        login(101)
+        db.routeDao().update(db.routeDao().get(routeId)!!.copy(status = "FINISHED"))
+        assertNotNull(routes.observe(routeId).first())
+        login(102)
+        assertNotNull(routes.observe(routeId).first())
+        login(103)
+        assertNull(routes.observe(routeId).first())
+        assertFalse(routes.publicRoutes.first().any { it.id == routeId })
+        assertNotNull(db.bookingDao().get(bookingId))
     }
 
     @Test fun anotherUserCannotAcceptRejectOrValidateOwnersRequest() = runBlocking {
@@ -121,6 +139,10 @@ class OwnershipHardeningTest {
         val second = DriverRepository(db.routeDao(), db.requestDao(), db.bookingDao(), session,
             PrivatePhotoStore(ApplicationProvider.getApplicationContext()), db)
         assertTrue(second.validateCode(routeA, code).isFailure)
+        val cancelledId = bookings.reserve(routeA, "Coyote", 1).getOrThrow()
+        val cancelledCode = db.bookingDao().get(cancelledId)!!.code
+        bookings.cancel(cancelledId)
+        assertTrue(driver.validateCode(routeA, cancelledCode).isFailure)
     }
 
     @Test fun concurrentRequestsCannotExceedCapacityAndCancellationIsIdempotent() = runBlocking {
@@ -148,5 +170,52 @@ class OwnershipHardeningTest {
         assertFalse(reviews.add("booking:$bookingId", ReviewRole.PASSENGER_TO_DRIVER,
             "User102", "User101", 5, emptySet(), "", "Coyote → UTTT"))
         assertNull(db.reviewDao().findByRef("booking:$bookingId"))
+    }
+
+    @Test fun acceptedRequestCodeCannotBeReused() = runBlocking {
+        val routeId = db.routeDao().insert(route(101))
+        val otherRoute = db.routeDao().insert(route(101))
+        db.requestDao().insertAll(listOf(request(101, "R-BOARD")))
+        val id = db.requestDao().findByCode("R-BOARD")!!.id
+        assertNull(driver.acceptRequest(id, routeId))
+        assertTrue(driver.validateCode(otherRoute, "R-BOARD").isFailure)
+        assertTrue(driver.validateCode(routeId, "R-BOARD").isSuccess)
+        assertTrue(driver.validateCode(routeId, "R-BOARD").isFailure)
+        assertTrue(db.requestDao().get(id)!!.validated)
+    }
+
+    @Test fun legacyBookingIsNotAssignedByGuessAndDemoSeedRemainsVisible() = runBlocking {
+        val routeId = db.routeDao().insert(route(101))
+        val realId = bookings.reserve(routeId, "Coyote", 1).getOrThrow()
+        val legacy = db.bookingDao().get(realId)!!.copy(id = 0, code = "LEGACY", ownerUserId = null)
+        val legacyId = db.bookingDao().insert(legacy)
+        val seededId = db.bookingDao().insert(legacy.copy(id = 0, code = "SEED", seeded = true))
+        assertNull(bookings.observe(legacyId).first())
+        login(102)
+        assertNull(bookings.observe(legacyId).first())
+        assertNull(bookings.observe(seededId).first())
+        login(0)
+        assertNotNull(bookings.observe(seededId).first())
+    }
+
+    @Test fun deletingAccountDoesNotRemoveOtherUsersRows() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val aRoute = db.routeDao().insert(route(101))
+        val bRoute = db.routeDao().insert(route(102))
+        val aBooking = bookings.reserve(aRoute, "Coyote", 1).getOrThrow()
+        login(102)
+        val bBooking = bookings.reserve(bRoute, "Coyote", 1).getOrThrow()
+        db.requestDao().insertAll(listOf(request(101, "A-REQ"), request(102, "B-REQ")))
+        login(101)
+        val store = PrivatePhotoStore(context)
+        val seeder = DemoSeeder(db.routeDao(), db.bookingDao(), db.requestDao(), db.reviewDao(), driver, session)
+        val auth = AuthRepository(db.userDao(), db.bookingDao(), db.routeDao(), db.requestDao(),
+            db.reviewDao(), store, driver, seeder, session, db, context)
+        auth.deleteAccount()
+        assertNull(db.bookingDao().get(aBooking))
+        assertNotNull(db.bookingDao().get(bBooking))
+        assertNotNull(db.routeDao().get(bRoute))
+        assertNotNull(db.requestDao().findByCode("B-REQ"))
+        assertEquals("CANCELLED", db.routeDao().get(aRoute)?.status)
     }
 }

@@ -33,7 +33,14 @@ class DriverRepository @Inject constructor(
     private val photoStore: PrivatePhotoStore,
     private val db: AppDatabase
 ) {
-    val requests: Flow<List<RideRequest>> = requestDao.observeAll().map { l -> l.map { it.toDomain() } }
+    private fun visibleRequest(ownerId: Long?, routeId: Long, status: String, userId: Long?) =
+        userId != null && (ownerId == userId ||
+            (ownerId == null && routeId == 0L && status == RequestStatus.PENDING.name))
+
+    val requests: Flow<List<RideRequest>> = combine(requestDao.observeAll(), session.state) { rows, s ->
+        rows.filter { visibleRequest(it.ownerUserId, it.routeId, it.status, s.user?.id) }
+            .map { it.toDomain() }
+    }
 
     private val _earnings = MutableStateFlow(DemoData.earnings())
     val earnings: StateFlow<EarningsState> = _earnings.asStateFlow()
@@ -101,6 +108,8 @@ class DriverRepository @Inject constructor(
         if (session.current.isDisabled) return "Tu cuenta está inhabilitada. No puedes aceptar solicitudes."
         val outcome = db.withTransaction {
             val req = requestDao.get(id) ?: return@withTransaction "No encontramos la solicitud." to null
+            if (!visibleRequest(req.ownerUserId, req.routeId, req.status, userId))
+                return@withTransaction "Esta solicitud no está dirigida a tu cuenta." to null
             if (req.status != RequestStatus.PENDING.name) return@withTransaction "Esta solicitud ya fue atendida." to null
             if (req.seats <= 0) return@withTransaction "La cantidad de asientos no es válida." to null
             val route = (if (routeId != null) routeDao.get(routeId) else routeDao.byOwner(userId).firstOrNull {
@@ -111,7 +120,8 @@ class DriverRepository @Inject constructor(
                 return@withTransaction "Esta ruta ya no acepta pasajeros." to null
             if (routeDao.decrementSeatsIfAvailable(route.id, req.seats) != 1)
                 return@withTransaction "No tienes lugares disponibles." to null
-            if (requestDao.acceptIfPending(id, route.id) != 1)
+            if (session.current.user?.id != userId) error("La sesión cambió durante la aceptación.")
+            if (requestDao.acceptIfPending(id, route.id, userId) != 1)
                 error("No se pudo registrar la aceptación de la solicitud.")
             null to Earning("${route.origin} → ${route.destination} · ${req.passengerName}", route.price * req.seats, "Hoy")
         }
@@ -124,69 +134,89 @@ class DriverRepository @Inject constructor(
     }
 
     suspend fun rejectRequest(id: Long) {
-        requestDao.get(id)?.let { requestDao.update(it.copy(status = RequestStatus.REJECTED.name)) }
+        val userId = session.current.user?.id ?: return
+        db.withTransaction {
+            requestDao.get(id)?.takeIf { it.ownerUserId == userId && it.status == RequestStatus.PENDING.name }
+                ?.let { requestDao.update(it.copy(status = RequestStatus.REJECTED.name)) }
+        }
     }
 
     /** El conductor valida el código que le muestra el pasajero para abordar. */
     suspend fun validateCode(routeId: Long, raw: String): Result<String> {
         if (session.current.isDisabled) return Result.failure(IllegalStateException("Tu cuenta está inhabilitada."))
+        val userId = session.current.user?.id
+            ?: return Result.failure(IllegalStateException("Inicia sesión primero."))
         val code = raw.trim().uppercase()
         if (code.isBlank()) return Result.failure(IllegalArgumentException("Escribe el código del pasajero."))
-        val req = requestDao.findByCode(code)
-        if (req != null) {
-            if (req.status != RequestStatus.ACCEPTED.name || req.routeId != routeId) {
-                return Result.failure(IllegalStateException("Este código no pertenece a un pasajero aceptado en esta ruta."))
+        return db.withTransaction {
+            if (session.current.user?.id != userId)
+                return@withTransaction Result.failure(IllegalStateException("La sesión cambió."))
+            val route = routeDao.get(routeId)
+            if (route?.ownerUserId != userId || route.status !in listOf(RouteStatus.ACTIVE.name, RouteStatus.IN_PROGRESS.name)) {
+                return@withTransaction Result.failure(IllegalStateException("Esta ruta no es tuya o no está vigente."))
             }
-            if (req.validated) return Result.failure(IllegalStateException("${req.passengerName} ya fue validado."))
-            requestDao.update(req.copy(validated = true))
-            return Result.success("Código válido: ${req.passengerName} ya puede abordar.")
+            val req = requestDao.findByCode(code)
+            if (req != null) {
+                if (requestDao.markValidatedIfAccepted(req.id, routeId, userId) != 1)
+                    return@withTransaction Result.failure(IllegalStateException("Código ajeno, vencido o ya validado."))
+                return@withTransaction Result.success("Código válido: ${req.passengerName} ya puede abordar.")
+            }
+            val b = bookingDao.findByCode(code)
+            if (b != null && bookingDao.markBoardedIfValid(b.id, routeId) == 1) {
+                return@withTransaction Result.success("Código válido: reserva ${b.code} (${b.origin} → ${b.destination}, ${b.seats} lugar(es)).")
+            }
+            Result.failure(IllegalStateException("Código no válido, de otra ruta o ya validado."))
         }
-        // Demo: reservas hechas desde el modo pasajero en este mismo dispositivo
-        val b = bookingDao.findByCode(code)
-        if (b != null && b.status == BookingStatus.CONFIRMED.name) {
-            return Result.success("Código válido: reserva ${b.code} (${b.origin} → ${b.destination}, ${b.seats} lugar(es)).")
-        }
-        return Result.failure(IllegalStateException("Código no válido."))
     }
 
     // ---------- Acciones de ruta ----------
 
     suspend fun startRoute(id: Long): String? {
         if (session.current.isDisabled) return "Tu cuenta está inhabilitada. No puedes iniciar rutas."
+        val userId = session.current.user?.id ?: return "Inicia sesión primero."
         val r = routeDao.get(id) ?: return "No encontramos la ruta."
+        if (r.ownerUserId != userId) return "Esta ruta no es tuya."
         if (r.status != RouteStatus.ACTIVE.name) return "Solo puedes iniciar una ruta activa."
         routeDao.update(r.copy(status = RouteStatus.IN_PROGRESS.name, progress = 1))
         return null
     }
 
     suspend fun advanceRoute(id: Long, stageCount: Int) {
-        val r = routeDao.get(id) ?: return
+        val userId = session.current.user?.id ?: return
+        val r = routeDao.get(id)?.takeIf { it.ownerUserId == userId && it.status == RouteStatus.IN_PROGRESS.name } ?: return
+        if (stageCount <= 0) return
         routeDao.update(r.copy(progress = (r.progress + 1).coerceAtMost(stageCount), waitStartedAt = 0L))
     }
 
     /** El conductor llegó al punto de encuentro: empieza a correr el tiempo de espera. */
     suspend fun startWait(id: Long) {
-        val r = routeDao.get(id) ?: return
+        val userId = session.current.user?.id ?: return
+        val r = routeDao.get(id)?.takeIf { it.ownerUserId == userId && it.status == RouteStatus.IN_PROGRESS.name } ?: return
         routeDao.update(r.copy(waitStartedAt = System.currentTimeMillis()))
     }
 
     /** Termina la espera antes de tiempo (el pasajero ya abordó o no se presentó). */
     suspend fun endWait(id: Long) {
-        val r = routeDao.get(id) ?: return
+        val userId = session.current.user?.id ?: return
+        val r = routeDao.get(id)?.takeIf { it.ownerUserId == userId && it.status == RouteStatus.IN_PROGRESS.name } ?: return
         routeDao.update(r.copy(waitStartedAt = 0L))
     }
 
     suspend fun finishRoute(id: Long) {
-        val r = routeDao.get(id) ?: return
+        val userId = session.current.user?.id ?: return
+        val r = routeDao.get(id)?.takeIf { it.ownerUserId == userId && it.status == RouteStatus.IN_PROGRESS.name } ?: return
         routeDao.update(r.copy(status = RouteStatus.FINISHED.name))
     }
 
     /** Cancela el viaje: la ruta pasa a Cancelada y se avisa (simulado) a los pasajeros aceptados. */
     suspend fun cancelRoute(id: Long) {
-        val r = routeDao.get(id) ?: return
-        routeDao.update(r.copy(status = RouteStatus.CANCELLED.name))
-        requests.first().filter { it.routeId == id && it.status == RequestStatus.ACCEPTED }.forEach { q ->
-            requestDao.get(q.id)?.let { requestDao.update(it.copy(status = RequestStatus.CANCELLED.name)) }
+        val userId = session.current.user?.id ?: return
+        db.withTransaction {
+            val r = routeDao.get(id)?.takeIf { it.ownerUserId == userId &&
+                it.status in listOf(RouteStatus.ACTIVE.name, RouteStatus.IN_PROGRESS.name, RouteStatus.INTERRUPTED.name) }
+                ?: return@withTransaction
+            routeDao.update(r.copy(status = RouteStatus.CANCELLED.name))
+            requestDao.cancelAcceptedForRoute(id, userId)
         }
     }
 

@@ -1,6 +1,7 @@
 package mx.edu.uttt.rutitas.database
 
 import androidx.room.Entity
+import androidx.room.ColumnInfo
 import androidx.room.PrimaryKey
 
 @Entity(tableName = "routes")
@@ -48,7 +49,8 @@ data class BookingEntity(
     val dateLabel: String,
     val shift: String = "MATUTINO",
     val direction: String = "ENTRADA",
-    val ownerUserId: Long? = null
+    val ownerUserId: Long? = null,
+    @ColumnInfo(defaultValue = "0") val boardingValidated: Boolean = false
 )
 
 

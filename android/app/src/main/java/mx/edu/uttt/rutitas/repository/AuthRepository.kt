@@ -79,8 +79,7 @@ class AuthRepository @Inject constructor(
             return Result.failure(IllegalStateException("El correo de las cuentas demo no se puede cambiar."))
         }
         if (newName != u.name) {
-            reviewDao.renameFrom(u.name, newName)
-            reviewDao.renameTo(u.name, newName)
+            reviewDao.renameFromForOwner(u.id, u.name, newName)
         }
         session.update {
             it.copy(
