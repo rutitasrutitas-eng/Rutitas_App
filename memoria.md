@@ -170,3 +170,13 @@ Fuentes detalladas: [documentos consultados](docs/fuentes-consultadas.md). Estad
 - Emulador: Medium_Phone_API_37.0.
 - Pendiente: prueba específica de restauración DEMO, aislamiento entre usuarios y revisión de registros faltantes.
 - Sin commit, push, merge ni publicación.
+
+### 2026-11-13 — Sprint de endurecimiento local Android APP-01/02/03
+
+- Solicitud humana actual: corregir aislamiento y autorización de repositorios Android, código de abordaje, regresiones y SDD; no modifica el estado `PENDIENTE_RATIFICACION` de la Constitución.
+- Base `main` verificada antes de trabajar: `8112b5bacd276bb0b9c3cf326bbf84946d2d5f73`; árbol limpio. PR #5 documental abierto y separado. Rama nueva `fix/android-ownership-hardening`.
+- Estado anterior: listas globales de reservas/solicitudes/reseñas, ruta propia guiada por `ownedByMe`, operaciones directas sin comprobación de dueño y código de reserva reutilizable o aceptado en otra ruta.
+- Primero se añadió `OwnershipHardeningTest.kt` (commit `bf3156b`). Luego se corrigieron repositorios, DAO, migración Room 4→5 y pruebas de migración (commit `b6802150ae74f3b4a8ba228025c3f24f3e22c739`). La matriz y archivos exactos constan en `docs/REPORTE_OWNERSHIP_HARDENING.md` y `specs/005-android-ownership-hardening/`.
+- Resultado local final: `lintDebug`, `testDebugUnitTest` (6/6), `assembleDebug`, `assembleDebugAndroidTest`, `connectedDebugAndroidTest` (19/19 en Rutitas_Audit_API_37), y `scripts/verify_project.py` aprobados. Primera corrida instrumentada: 17/18 por comparación de código UUID con diferente uso de mayúsculas; se corrigió y repitió. Una corrida se interrumpió por un fallo nativo de Java 17; la repetición con `-XX:TieredStopAtLevel=1` aprobó.
+- Room v5 conserva datos anteriores mediante migración explícita; datos históricos con propietario NULL no se atribuyen por nombre. DEMO y rutas públicas se mantienen. Las pruebas no acreditan autenticación ni borrado remoto, ni migraciones Room 1/2.
+- GitHub Actions, Gitleaks, SHA final y URL del PR: pendientes de verificación tras publicar la rama. Revisión funcional a cargo de Ame y el equipo. Sin merge, distribución Play, cambios de secretos ni entornos.
