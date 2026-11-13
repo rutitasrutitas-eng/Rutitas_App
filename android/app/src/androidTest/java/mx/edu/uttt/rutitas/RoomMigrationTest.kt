@@ -7,19 +7,20 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import mx.edu.uttt.rutitas.database.AppDatabase
 import mx.edu.uttt.rutitas.database.MIGRATION_3_4
+import mx.edu.uttt.rutitas.database.MIGRATION_4_5
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
  * Reproduce el esquema original de las entidades Room v3 sin ownerUserId,
- * migra a v4 mediante Room y comprueba que los registros siguen existiendo.
+ * migra a v5 mediante Room y comprueba que los registros siguen existiendo.
  * No usa la base de datos real de la aplicación.
  */
 @RunWith(AndroidJUnit4::class)
 class RoomMigrationTest {
     @Test
-    fun migration3To4PreservesExistingRows() {
+    fun migration3To5PreservesExistingRows() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val name = "test_migration_v3_to_v4_${System.nanoTime()}.db"
         val path = context.getDatabasePath(name)
@@ -122,12 +123,12 @@ class RoomMigrationTest {
             }
 
             val upgraded = Room.databaseBuilder(context, AppDatabase::class.java, name)
-                .addMigrations(MIGRATION_3_4)
+                .addMigrations(MIGRATION_3_4, MIGRATION_4_5)
                 .build()
             try {
-                // Abrir la base activa tanto la migración como la validación de Room v4.
+                // Abrir la base activa tanto las migraciones como la validación de Room v5.
                 val sqlite = upgraded.openHelper.writableDatabase
-                assertEquals(4, sqlite.version)
+                assertEquals(5, sqlite.version)
                 for ((table, expectedId) in listOf(
                     "routes" to 11, "bookings" to 21, "requests" to 31,
                     "users" to 41, "reviews" to 51
@@ -142,6 +143,10 @@ class RoomMigrationTest {
                         assertTrue(it.moveToFirst())
                         assertTrue("El propietario histórico de $table debe ser NULL", it.isNull(0))
                     }
+                }
+                sqlite.query("SELECT boardingValidated FROM bookings WHERE id = 21").use {
+                    assertTrue(it.moveToFirst())
+                    assertEquals("La reserva histórica comienza sin validar", 0, it.getInt(0))
                 }
             } finally {
                 upgraded.close()

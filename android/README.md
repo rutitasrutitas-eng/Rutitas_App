@@ -36,7 +36,7 @@ También puedes **crear cuenta** (se guarda en Room) y recorrer Ubicación → H
 - **Historial de reseñas** (*Perfil > Reseñas y calificaciones*), en ambos sentidos: pasajero → conductor (al terminar el viaje) y conductor → pasajero (al finalizar la ruta, *Calificar pasajero*). Pestañas *Recibidas* y *Enviadas*, con promedio.
 - **Perfil rediseñado** (pasajero y conductor): foto de perfil (tomar, elegir o quitar), calificación, viajes y reseñas. **Editar perfil**: foto, nombre, correo (con dominio institucional), tipo de usuario, zona y horario. El correo de las cuentas demo no se puede cambiar.
 - La foto de perfil se guarda en almacenamiento privado, sin metadatos, y se borra al eliminar la cuenta.
-- Base de datos versión 3: al actualizar sobre una instalación anterior los datos locales se reinician.
+- Base de datos Room versión 5: migraciones explícitas 3→4→5 conservan los registros, mantienen sin propietario los históricos no verificables y agregan validación persistente de abordaje. Las versiones 1/2 aún no tienen migración aprobada; no se aplica borrado destructivo automático.
 
 ### Novedades de la ronda anterior
 - **Eliminar cuenta:** borra de verdad (perfil, reservas, rutas, solicitudes, registro de conductor y fotos privadas). Las cuentas demo también se eliminan; se recuperan con **Restaurar cuentas demo** en la pantalla de inicio de sesión.

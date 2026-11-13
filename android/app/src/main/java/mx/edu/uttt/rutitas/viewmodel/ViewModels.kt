@@ -95,7 +95,7 @@ class BookingViewModel @Inject constructor(
 
     /** Reseñas que los pasajeros le han dado al conductor de esta ruta (se muestran antes de reservar). */
     val driverReviews: StateFlow<List<Review>> by lazy {
-        combine(route, reviewRepo.reviews) { r, rs ->
+        combine(route, reviewRepo.publicDriverReviews) { r, rs ->
             rs.filter { it.role == ReviewRole.PASSENGER_TO_DRIVER && it.toName == r?.driverName }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     }
@@ -349,7 +349,7 @@ class DriverPublicReviewsViewModel @Inject constructor(
 ) : ViewModel() {
     private val name: String = handle.get<String>("name") ?: ""
 
-    val state: StateFlow<DriverReviewsUiState> = reviewRepo.reviews.map { rs ->
+    val state: StateFlow<DriverReviewsUiState> = reviewRepo.publicDriverReviews.map { rs ->
         val list = rs.filter { it.role == ReviewRole.PASSENGER_TO_DRIVER && it.toName == name }
         DriverReviewsUiState(name, list, averageStars(list))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DriverReviewsUiState(name))
