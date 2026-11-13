@@ -41,12 +41,13 @@ class DemoSeeder @Inject constructor(
         }
     }
 
+    /** Restablece solo el estado DEMO en memoria; no borra datos de otros usuarios. */
     fun reset() {
         scope.launch {
             _ready.value = false
-            routeDao.clear(); bookingDao.clear(); requestDao.clear(); reviewDao.clear()
-            insertAll()
-            driverRepo.resetDemoState()
+            // Únicamente si la base está vacía se agregan registros de ejemplo.
+            // No se reemplazan registros existentes (incluidos los heredados).
+            if (routeDao.count() == 0) insertAll()
             session.update {
                 it.copy(
                     driverStatus = DriverStatus.NONE, vehicle = Vehicle(),
@@ -59,9 +60,9 @@ class DemoSeeder @Inject constructor(
     }
 
     private suspend fun insertAll() {
-        routeDao.insertAll(DemoData.routes())
-        bookingDao.insertAll(DemoData.bookings())
-        requestDao.insertAll(DemoData.requests())
-        reviewDao.insertAll(DemoData.reviews())
+        routeDao.insertDemoIfAbsent(DemoData.routes())
+        bookingDao.insertDemoIfAbsent(DemoData.bookings())
+        requestDao.insertDemoIfAbsent(DemoData.requests())
+        reviewDao.insertDemoIfAbsent(DemoData.reviews())
     }
 }

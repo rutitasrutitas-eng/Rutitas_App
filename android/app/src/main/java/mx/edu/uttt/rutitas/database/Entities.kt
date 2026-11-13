@@ -24,7 +24,8 @@ data class RouteEntity(
     val recurring: Boolean,
     val waitMinutes: Int = 5,
     val progress: Int = 0,
-    val waitStartedAt: Long = 0L
+    val waitStartedAt: Long = 0L,
+    val ownerUserId: Long? = null // null = legado/DEMO sin propietario verificable
 )
 
 @Entity(tableName = "bookings")
@@ -46,8 +47,10 @@ data class BookingEntity(
     val seeded: Boolean,
     val dateLabel: String,
     val shift: String = "MATUTINO",
-    val direction: String = "ENTRADA"
+    val direction: String = "ENTRADA",
+    val ownerUserId: Long? = null
 )
+
 
 @Entity(tableName = "requests")
 data class RequestEntity(
@@ -62,8 +65,10 @@ data class RequestEntity(
     val direction: String = "ENTRADA",
     val code: String = "",
     val validated: Boolean = false,
-    val passengerType: String = "Alumno"
+    val passengerType: String = "Alumno",
+    val ownerUserId: Long? = null
 )
+
 
 @Entity(tableName = "users")
 data class UserEntity(
@@ -90,5 +95,6 @@ data class ReviewEntity(
     val tags: String, // separadas por "|"
     val comment: String,
     val routeTitle: String,
-    val dateLabel: String
+    val dateLabel: String,
+    val ownerUserId: Long? = null
 )

@@ -225,7 +225,9 @@ class DriverOnboardingViewModel @Inject constructor(
     sessionManager: SessionManager
 ) : ViewModel() {
     val session: StateFlow<Session> = sessionManager.state
-    val photos: StateFlow<Map<String, File>> = repo.photos
+    val photos: StateFlow<Map<String, File>> = repo.photos.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap()
+    )
 
     fun start() = repo.startOnboarding()
     fun setPhoto(key: String, photo: Any) { viewModelScope.launch { repo.setPhoto(key, photo) } }

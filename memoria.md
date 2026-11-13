@@ -95,3 +95,78 @@ Fuentes detalladas: [documentos consultados](docs/fuentes-consultadas.md). Estad
 - PR #3: https://github.com/rutitasrutitas-eng/Rutitas_App/pull/3, abierto hacia main y sin fusionar.
 - Actions PR run: https://github.com/rutitasrutitas-eng/Rutitas_App/actions/runs/43081378215. Validación YAML, SDD y Gitleaks: success; detección Gradle: success; build/lint/tests: skipped por ausencia de Gradle Wrapper/proyecto Android.
 - No se afirma que pruebas de producto hayan pasado. Pendientes: integrar proyecto Android real, aprobar SDK/stack, habilitar Dependency Graph y revisar CI con evidencia por SHA. No se cambió main, Constitución, requisitos ni estados de arquitectura base; no hubo publicación a Google Play.
+
+## 2026-11-12 — Preparación de correcciones técnicas Android (PR #4, SIN merge)
+
+- Responsable de integración local: Ame; revisión humana final: pendiente.
+- Rama solicitada: `feature/integracion-android-ci-cd`. PR: https://github.com/rutitasrutitas-eng/Rutitas_App/pull/4.
+- SHA base revisado: `264d4f3c73682900b41ce7c39174ee93dbd2d451`.
+- Evidencia CI **anterior a correcciones**: https://github.com/rutitasrutitas-eng/Rutitas_App/actions/runs/43287112859 (aprobó pipeline inicial; no demuestra pruebas de negocio).
+- Entrada de trabajo preparada desde un ZIP proporcionado por la persona responsable. Respaldo privado local reportado y comprobación de presencia de `AuthRepository.kt` y `memoria.md`; no se verificó aquí restaurabilidad integral del respaldo.
+- P0-A: se agregó `ownerUserId` a entidades, eliminación acotada por ID en `AuthRepository`, fotos de conductor por cuenta, y limpieza específica; los datos legados quedan con propietario `NULL` y no se atribuyen sin evidencia. Las rutas propias se marcan canceladas preservando reservas ajenas.
+- P0-B: reserva transaccional Room, actualización condicional de asientos, validación de cantidad positiva y código basado en UUID; el servidor todavía no aplica estas garantías.
+- P0-C: cancelación condicional e idempotente y aceptación transaccional de solicitudes pendientes. Prueba completa de aceptación repetida aún pendiente.
+- P1-A/B: modo DEMO conservado, contraseñas SHA-256 locales no aptas para usuarios reales; Room sube a versión 4 con migración explícita desde versión 3. No se configuraron migraciones antiguas (1/2), requiere revisión.
+- P1-C: no se tocaron ni ejecutaron workflows de firma o Play; `upload-google-play@v1` aún requiere fijación por SHA y aprobación de administradores.
+- P1-D/P2: actualizados README y documentación de SDD/CI; agregados `BookingSafetyTest` y `AccountIsolationTest` instrumentados.
+- **Estado de validación:** análisis y modificaciones locales preparados. **NO se ejecutó** compilación Android, lint, suite de pruebas, emulador, Gitleaks ni CI en un nuevo SHA en este entorno. Todo resultado nuevo queda PENDIENTE; no reportar como aprobado.
+- **Estado Git:** no se creó commit nuevo, no hay SHA final ni run de GitHub Actions. Este paquete se entrega para aplicar/revisar en la rama existente, no sobrescribe `.git`.
+- **Pendientes:** verificar migración y pruebas, validar la restauración funcional de DEMO sin sobrescribir registros existentes, filtros `ownedByMe`, operaciones heredadas y permisos del resto de rutas; remediar autorización backend; validar Play Environment y pin SHA; aprobación humana del equipo.
+- Constitución y decisiones tecnológicas: **PENDIENTE_RATIFICACION**. No cambiar estado ni alterar la historia CI/CD-001, 002, 003.
+- Merge `main`, Google Play y despliegue productivo: **no realizados** durante esta preparación.
+
+### 2026-11-12 — Validación local de correcciones Android (PR #4)
+
+- Responsable: Ame.
+- Rama: feature/integracion-android-ci-cd.
+- SHA base: 264d4f3c73682900b41ce7c39174ee93dbd2d451.
+- Respaldo: Rutitas_Backup_PreCorrecciones_2026-11-12, almacenado fuera del repositorio; se comprobó la presencia de AuthRepository.kt y memoria.md.
+- Compilación assembleDebug: BUILD SUCCESSFUL.
+- Análisis lintDebug: BUILD SUCCESSFUL.
+- Pruebas testDebugUnitTest: BUILD SUCCESSFUL.
+- Pruebas connectedDebugAndroidTest: BUILD SUCCESSFUL; 7 pruebas ejecutadas, 0 fallidas y 0 omitidas, en Medium_Phone_API_37.0.
+- Corrección de compilación: se completaron los cierres de las entidades en Entities.kt.
+- Migración Room 3 a 4: se agregó una comprobación de existencia de columnas en Migrations.kt tras detectar ownerUserId duplicado. Las pruebas instrumentadas pasaron después de la modificación; aún falta validar explícitamente la preservación de datos en actualizaciones.
+- Pruebas agregadas: BookingSafetyTest.kt y AccountIsolationTest.kt.
+- Alcance: validación local de los casos cubiertos por las pruebas; no demuestra seguridad completa ni integración con backend.
+- Gitleaks y GitHub Actions para un nuevo commit: pendientes.
+- Persisten pendientes de revisión: autenticación productiva, migraciones antiguas, operaciones DEMO, permisos de rutas, seguridad del pipeline Play y aprobación humana.
+- Constitución SDD: PENDIENTE_RATIFICACION.
+- Nuevo commit SHA: pendiente.
+- Merge a main, publicación Google Play y despliegue: no realizados.
+
+
+### 2026-11-12 — Auditoría del entorno android-play-internal
+
+- Evidencia del equipo: https://github.com/rutitasrutitas-eng/Rutitas_App/pull/5
+- El líder confirmó que android-play-internal tiene como revisor obligatorio a DxRxXgSo.
+- Prevención de autoaprobación: configurada.
+- Bypass administrativo: desactivado.
+- Ramas autorizadas: únicamente main.
+- Estado de la revisión: configuración del entorno reportada como verificada por el equipo.
+- Pendientes: configurar android-release y los secretos para una futura distribución.
+- No se ejecutó publicación, firma de distribución ni merge a main.
+- Esta evidencia no sustituye la revisión técnica ni la aprobación final del PR #4.
+
+
+### 2026-11-12 — Prueba instrumentada de migración Room
+
+- Prueba: RoomMigrationTest.kt.
+- Objetivo: verificar la actualización de Room versión 3 a 4.
+- Entorno: emulador Medium_Phone_API_37.0.
+- Resultado: BUILD SUCCESSFUL; 1 prueba ejecutada.
+- Duración: 1 minuto y 45 segundos.
+- Alcance: escenario de migración cubierto por la prueba; no acredita todas las actualizaciones posibles.
+- Pendientes: revisar migraciones desde versiones 1 y 2, restauración DEMO y pruebas adicionales.
+- No se realizó commit, push, merge ni publicación.
+
+
+### 2026-11-12 — Validación de inserciones DEMO
+
+- Se agregaron métodos insertDemoIfAbsent() con OnConflictStrategy.IGNORE en los cuatro DAO.
+- DemoSeeder utiliza estos métodos para evitar reemplazar registros con identificadores existentes.
+- Compilación assembleDebug: BUILD SUCCESSFUL.
+- Pruebas connectedDebugAndroidTest: 8/8 aprobadas, 0 fallidas.
+- Emulador: Medium_Phone_API_37.0.
+- Pendiente: prueba específica de restauración DEMO, aislamiento entre usuarios y revisión de registros faltantes.
+- Sin commit, push, merge ni publicación.

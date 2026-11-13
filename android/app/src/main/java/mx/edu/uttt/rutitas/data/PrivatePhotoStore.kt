@@ -42,6 +42,14 @@ class PrivatePhotoStore @Inject constructor(@ApplicationContext private val cont
 
     fun delete(key: String) { File(dir, "$key.jpg").delete() }
 
+    /** Solo fotos de conductor con nombre perteneciente al usuario. La foto de perfil se gestiona aparte. */
+    fun deleteForUser(userId: Long) {
+        val prefix = "user_${userId}_"
+        dir.listFiles()?.filter { it.isFile && it.name.startsWith(prefix) && it.extension == "jpg" }
+            ?.forEach { it.delete() }
+    }
+
+    /** Exclusivamente para reinicialización explícita de datos de prueba; NO usar en baja de cuenta. */
     fun deleteAll() { dir.listFiles()?.forEach { it.delete() } }
 
     private fun open(source: Any): InputStream? = when (source) {

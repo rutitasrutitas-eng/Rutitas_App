@@ -1,6 +1,8 @@
 package mx.edu.uttt.rutitas.repository
 
-import kotlinx.coroutines.delay
+import androidx.room.withTransaction
+import mx.edu.uttt.rutitas.database.AppDatabase
+import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
@@ -21,7 +23,8 @@ import javax.inject.Singleton
 class BookingRepository @Inject constructor(
     private val dao: BookingDao,
     private val routeDao: RouteDao,
-    private val session: SessionManager
+    private val session: SessionManager,
+    private val db: AppDatabase
 ) {
     val bookings: Flow<List<Booking>> = dao.observeAll().map { l -> l.map { it.toDomain() } }
 
@@ -40,30 +43,45 @@ class BookingRepository @Inject constructor(
         shift: Shift = Shift.MATUTINO, direction: TripDirection = TripDirection.ENTRADA
     ): Result<Long> {
         val s = session.current
-        if (s.user == null) return fail("Inicia sesión para reservar.")
+        val owner = s.user?.id ?: return fail("Inicia sesión para reservar.")
         if (s.isDisabled) return fail("Tu cuenta está inhabilitada. No puedes reservar.")
-        val r = routeDao.get(routeId) ?: return fail("No encontramos la ruta.")
-        if (r.status == RouteStatus.INTERRUPTED.name) return fail("Esta ruta está interrumpida y no acepta reservas.")
-        if (r.seats < seats) return fail(if (r.seats == 0) "La ruta ya no tiene lugares." else "Solo quedan ${r.seats} lugares.")
-        delay(450)
-        routeDao.update(r.copy(seats = r.seats - seats))
-        val n = dao.countCreated()
-        val id = dao.insert(
-            BookingEntity(
-                code = "RT-${2481 + n}", routeId = r.id, origin = r.origin, destination = r.destination,
-                departure = r.departure, pickup = pickup, driverName = r.driverName, car = r.car,
-                seats = seats, total = r.price * seats, status = BookingStatus.CONFIRMED.name,
-                progress = 0, rated = false, seeded = false, dateLabel = "Hoy",
-                shift = shift.name, direction = direction.name
-            )
-        )
-        return Result.success(id)
+        if (seats <= 0) return fail("Solicita al menos un asiento.")
+        if (pickup.isBlank()) return fail("Selecciona un punto de encuentro.")
+        return try {
+            db.withTransaction {
+                val route = routeDao.get(routeId) ?: return@withTransaction fail("No encontramos la ruta.")
+                if (route.status != RouteStatus.ACTIVE.name)
+                    return@withTransaction fail("Esta ruta no admite reservas nuevas.")
+                if (seats > route.seats)
+                    return@withTransaction fail("Solo quedan ${route.seats} lugares.")
+                if (routeDao.decrementSeatsIfAvailable(route.id, seats) != 1)
+                    return@withTransaction fail("No hay suficientes asientos disponibles.")
+                val id = dao.insert(
+                    BookingEntity(
+                        code = "RT-${UUID.randomUUID()}", routeId = route.id,
+                        origin = route.origin, destination = route.destination,
+                        departure = route.departure, pickup = pickup, driverName = route.driverName,
+                        car = route.car, seats = seats, total = route.price * seats,
+                        status = BookingStatus.CONFIRMED.name, progress = 0, rated = false,
+                        seeded = false, dateLabel = "Hoy", shift = shift.name,
+                        direction = direction.name, ownerUserId = owner
+                    )
+                )
+                Result.success(id)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
+    /** Solo el titular puede cancelar; la segunda cancelación no devuelve asientos. */
     suspend fun cancel(id: Long) {
-        val b = dao.get(id) ?: return
-        routeDao.get(b.routeId)?.let { routeDao.update(it.copy(seats = it.seats + b.seats)) }
-        dao.update(b.copy(status = BookingStatus.CANCELLED.name))
+        val userId = session.current.user?.id ?: return
+        db.withTransaction {
+            val booking = dao.get(id) ?: return@withTransaction
+            if (booking.ownerUserId != userId) return@withTransaction
+            if (dao.cancelIfActive(id) == 1) routeDao.restoreSeats(booking.routeId, booking.seats)
+        }
     }
 
     suspend fun confirmPending(id: Long) {
