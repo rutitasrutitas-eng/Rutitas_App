@@ -1,4 +1,4 @@
-name: Rutitas Mobile - preparar AAB (NO publicar Google Play)
+name: Rutitas Android - AAB firmado para revisión
 
 on:
   workflow_dispatch:
@@ -7,25 +7,18 @@ permissions:
   contents: read
 
 jobs:
-  package:
-    name: AAB para revisión humana
+  sign-aab:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: android-release
-    timeout-minutes: 45
+    timeout-minutes: 50
+    defaults:
+      run:
+        working-directory: android
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - name: Exigir Android real
-        id: project
-        shell: bash
-        run: |
-          set -euo pipefail
-          wrapper="$(find . -type f -name gradlew -not -path './.git/*' -print -quit)"
-          test -n "$wrapper" || { echo '::error::No existe proyecto Android; abortando'; exit 1; }
-          dir="$(dirname "$wrapper")"
-          test -f "$dir/gradle/wrapper/gradle-wrapper.jar" || exit 1
-          echo "directory=${dir#./}" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -34,19 +27,50 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
         with:
           cache-provider: basic
-      - name: Generar AAB para revisión
+      - name: Comprobar secretos para firma
         env:
-          ANDROID_DIR: ${{ steps.project.outputs.directory }}
+          UPLOAD_KEYSTORE_B64: ${{ secrets.UPLOAD_KEYSTORE_B64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         shell: bash
         run: |
           set -euo pipefail
-          cd "$ANDROID_DIR"
+          for name in UPLOAD_KEYSTORE_B64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            test -n "${!name}" || { echo "::error::Falta secret $name"; exit 1; }
+          done
+      - name: Crear keystore temporal fuera del workspace
+        env:
+          UPLOAD_KEYSTORE_B64: ${{ secrets.UPLOAD_KEYSTORE_B64 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "$UPLOAD_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/rutitas-upload.jks"
+          chmod 600 "$RUNNER_TEMP/rutitas-upload.jks"
+      - name: Compilar AAB firmado y ejecutar validaciones
+        env:
+          ANDROID_KEYSTORE_FILE: ${{ runner.temp }}/rutitas-upload.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager 'platforms;android-36'
           chmod +x ./gradlew
           ./gradlew --no-daemon lintRelease testDebugUnitTest bundleRelease
-          echo 'No se ha firmado, distribuido ni publicado en Play mediante este workflow.' >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+          test -s app/build/outputs/bundle/release/app-release.aab
+          echo 'AAB generado y firmado con upload key. NO se subió a Google Play.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'El modo DEMO sigue activo; revisar antes de cualquier publicación pública.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Entregar AAB
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         with:
-          name: android-aab-review-only
-          path: '**/build/outputs/bundle/release/*.aab'
+          name: rutitas-aab-firmado-revision
+          path: android/app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
           retention-days: 7
+      - name: Eliminar llave temporal
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/rutitas-upload.jks"
