@@ -1,3 +1,4 @@
+
 # Checklist — CI/CD-001
 
 - [x] YAML preparado para revisión.
@@ -26,3 +27,15 @@ No se ejecutó CI/CD ni distribución durante esta auditoría. Evidencia: [repor
 
 ### Precisión posterior: CI del PR de auditoría
 La frase “No se ejecutó CI/CD” se refiere a que no se despachó manualmente CI/CD ni se inició distribución. La apertura del PR #5 sí activó CI automáticamente: [run 43332604438](https://github.com/rutitasrutitas-eng/Rutitas_App/actions/runs/43332604438) success para SDD/YAML/Gitleaks y detección Gradle; build Android skipped por falta de wrapper. Play y package-release no se ejecutaron.
+
+
+### Cierre de protección administrativa — 2026-11-12
+
+- [x] `main` exige PR, 1 aprobación humana, aprobación de otra persona para el push más reciente, conversaciones resueltas; bloquea force-push y eliminación, sin bypass.
+- [x] `android-release` creado y protegido: DxRxXgSo requerido, auto-revisión y bypass apagados, solo `main`, 0 tags. La tarea anterior de crear/protegerlo queda resuelta.
+- [x] `android-play-internal` se verificó sin cambios.
+- [ ] Alinear nombres de jobs antes de exigir checks obligatorios.
+- [ ] Secrets de firma/Play siguen pendientes, no se leyeron ni editaron.
+- [ ] Merge #4 y #5 requiere revisión/aprobación humana; ambos siguen abiertos.
+
+No se ejecutó ningún workflow de distribución ni publicación.
