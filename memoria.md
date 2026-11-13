@@ -110,3 +110,10 @@ Fuentes detalladas: [documentos consultados](docs/fuentes-consultadas.md). Estad
 
 ### Precisión de ejecución automática del PR documental
 Al abrir el PR #5, GitHub ejecutó automáticamente CI (run 43332604438, success): validación SDD/YAML y Gitleaks, detección Gradle aprobadas; build Android omitido porque main no contiene wrapper. No se despacharon workflows manuales ni de distribución.
+
+
+### Protección de main y android-release — 2026-11-12
+
+Se verificó tras recargar el ruleset activo `Rutitas main: PR review y protección`: aplica solo a `main`, exige PR y 1 aprobación; invalida aprobaciones antiguas, pide aprobación de alguien distinto al último push, requiere resolver conversaciones, bloquea force-push/eliminación y no tiene bypass. Status checks aún no son obligatorios porque los nombres de jobs difieren entre main y PR #4.
+
+`android-release` quedó con reviewer requerido `DxRxXgSo`, prevención de auto-revisión, bypass administrativo apagado y solo `main` permitido (1 rama, 0 tags). No hay secretos ni variables. `android-play-internal` se revalidó sin cambios con sus protecciones previas. #4 y #5 siguen abiertos/sin merge. No se accedió a secretos ni se ejecutó publicación. Detalle y evidencia: [reporte de seguridad](docs/AUDITORIA_ANDROID_PLAY_INTERNAL.md).
