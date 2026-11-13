@@ -35,3 +35,16 @@
 | SEG-02: acciones inmutables | Parcial | checkout, upload-artifact y Gitleaks están fijados a SHA/digest; hay otras acciones con etiquetas mutables. |
 
 El informe detallado está en [AUDITORIA_ANDROID_PLAY_INTERNAL.md](AUDITORIA_ANDROID_PLAY_INTERNAL.md). Esta evidencia es de configuración visual y revisión estática de workflows; no sustituye logs de ejecución, aprobación humana de un deployment ni ratificación constitucional. El PR documental #5 es la propuesta que incorpora este registro; no está fusionado.
+
+
+## Trazabilidad de protecciones de main y entornos — 2026-11-12
+
+| Control | Estado verificado | Evidencia | Pendiente |
+|---|---|---|---|
+| Revisión de `main` | PR requerido; 1 aprobación; aprobación del push más reciente por otra persona; conversaciones resueltas | Ruleset activo `Rutitas main: PR review y protección`, limitado a `main` | Revisión humana de PRs #4/#5 |
+| Integridad de `main` | Eliminación y force-push bloqueados; bypass vacío | Ruleset persistió tras verificación | — |
+| Status checks | No obligatorios | Nombres de CI difieren entre main y #4 | Uniformar y probar antes de requerir checks |
+| `android-release` | DxRxXgSo requerido; no self-review ni bypass; solo main, cero tags | Guardado y recargado; sin secretos/variables | Firma/Play en fase autorizada |
+| `android-play-internal` | Sin cambios; DxRxXgSo, no self-review/bypass, main solamente, cero tags | Revisión visual tras actualizar | — |
+
+PR #4 y #5 permanecen abiertos y sin fusionar. No se ejecutó publicación ni se accedió a valores secretos. El detalle está en [auditoría](AUDITORIA_ANDROID_PLAY_INTERNAL.md).
