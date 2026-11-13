@@ -20,3 +20,7 @@ Esta entrega **no** decide endpoints, modelos de producto, pantallas, proveedor 
 Se documentó una **preferencia no aprobada del equipo Backend** por ASP.NET Core 10/C#, Google Cloud Run, Firestore NoSQL, Google Maps Platform y posible Firebase Authentication. El usuario comunicó que el profesor exige **NoSQL** y limita la nube a Azure/AWS/Google Cloud; fuente primaria pendiente. Ninguna de estas preferencias selecciona automáticamente el stack de Móvil. Permanecen abiertos `MOVIL-D05` y `MOVIL-D06`.
 
 [Impacto exploratorio de la propuesta Backend](propuestas-futuras/impacto-propuesta-backend.md).
+
+## Registro de implementación de facto — 2026-11-12 (NO ratificado)
+
+En la rama `feature/integracion-android-ci-cd` se observan Kotlin, Jetpack Compose, Room, Retrofit, Hilt, SDK 36 y workflows GitHub Actions. Son tecnologías **presentes en código**, no decisiones aprobadas por la Constitución. La Constitución sigue `PENDIENTE_RATIFICACION`. Pendientes de aprobación humana: plataforma móvil definitiva, datos y retención, estrategia de backend, migraciones antiguas, método de autenticación de usuarios reales y política Play. Ver `docs/ANDROID_INTEGRATION_AND_PLAY.md`.

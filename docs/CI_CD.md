@@ -24,3 +24,7 @@ La etapa inicial también parsea los dos archivos YAML con la biblioteca estánd
 - [GitHub Actions, run PR 43058284454](https://github.com/rutitasrutitas-eng/Rutitas_App/actions/runs/43058284454): job SDD/YAML/Gitleaks **success**; detección Gradle **success**; build/lint/tests Android **skipped** porque no hay `gradlew`/proyecto.
 - Gitleaks: **success**, sin hallazgos reportados. La validación CI-05 parseó ambos workflows YAML sin error.
 - App y AAB no verificados; no se ejecutó el workflow manual ni se publicó en Google Play.
+
+## Adenda 2026-11-12 — Correcciones PR #4
+
+La fase documental descrita arriba es histórica. En `feature/integracion-android-ci-cd` ya existe proyecto Android y la CI original aprobó en SHA `264d4f3` (run 43287112859); **ningún check del run antiguo valida esta revisión posterior**. La ejecución del nuevo HEAD, Gitleaks, lint, pruebas instrumentadas y APK aún están pendientes. Las nuevas pruebas instrumentadas abarcan concurrencia local de reservas, doble cancelación y aislamiento por cuenta; no sustituyen aceptación ni operaciones remotas. Distribución Play y credenciales siguen bloqueadas por autorización manual. Consultar [revisión Android](ANDROID_INTEGRATION_AND_PLAY.md).

@@ -64,7 +64,7 @@ class RouteRepository @Inject constructor(
                 car = s.vehicle.description.ifBlank { "Mi auto" },
                 stops = (stops ?: defaultStops(origin, destination)).joinToString("|"),
                 status = RouteStatus.ACTIVE.name, ownedByMe = true, alternative = false, tag = null,
-                days = days, recurring = recurring, waitMinutes = waitMinutes
+                days = days, recurring = recurring, waitMinutes = waitMinutes, ownerUserId = s.user.id
             )
         )
         return Result.success(id)

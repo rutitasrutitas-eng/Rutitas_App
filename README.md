@@ -63,3 +63,15 @@ El equipo Backend estudia **ASP.NET Core 10/C# + Google Cloud Run + Firestore No
 - [Integración todavía pendiente de acuerdo](docs/integracion-entre-proyectos.md).
 
 El anexo no integra endpoints en la especificación SDD móvil ni cambia los 12 requisitos o las 7 tareas pendientes.
+
+## Estado actualizado de Android — revisión del PR #4 (2026-11-12)
+
+La descripción documental anterior conserva valor histórico, pero ya existe una aplicación Android **en la rama `feature/integracion-android-ci-cd`**, no se asume fusionada en `main`. Está implementada en `android/` con Kotlin, Jetpack Compose, Hilt, Room, Retrofit y SDK 36. El equipo aún debe ratificar sus decisiones tecnológicas y Constitución.
+
+- **Modo actual:** DEMO local (`DEMO_MODE=true`); no ofrece autenticación productiva ni backend integrado. Nunca ingresar datos reales.
+- **Compilación y pruebas en PC con Android SDK 36/JDK 17:** `cd android`, luego `./gradlew lintDebug testDebugUnitTest assembleDebug assembleDebugAndroidTest connectedDebugAndroidTest` (emulador para la última).
+- **Evidencia previa:** GitHub Actions [run 43287112859](https://github.com/rutitasrutitas-eng/Rutitas_App/actions/runs/43287112859) aprobó el commit base `264d4f3`; **no acredita las correcciones posteriores**.
+- **Corrección en revisión:** propiedad de registros, borrado local acotado, fotos por cuenta, operaciones transaccionales y Room 3->4. Nuevas pruebas agregadas, **aún sin ejecutar en este paquete**.
+- **Limitaciones pendientes:** restauración de datos demo sin afectar cuentas, migraciones de esquemas anteriores, autorización/verificación del backend, revisión de distribución Play, ratificación SDD y pruebas de regresión ampliadas.
+
+Ver [estado, riesgos y pasos de integración](docs/ANDROID_INTEGRATION_AND_PLAY.md), [spec 004](specs/004-integracion-app-android/spec.md), [trazabilidad](specs/004-integracion-app-android/trazabilidad.md) y [memoria.md](memoria.md).

@@ -22,7 +22,8 @@ object DatabaseModule {
     @Provides @Singleton
     fun database(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "rutitas.db")
-            .fallbackToDestructiveMigration()
+            .addMigrations(MIGRATION_3_4)
+            // Sin borrado destructivo de datos: versiones anteriores a 3 requieren migración aprobada.
             .build()
 
     @Provides fun routeDao(db: AppDatabase): RouteDao = db.routeDao()

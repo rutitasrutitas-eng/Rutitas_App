@@ -1,10 +1,13 @@
 package mx.edu.uttt.rutitas.repository
 
+import androidx.room.withTransaction
+import mx.edu.uttt.rutitas.database.AppDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
@@ -27,7 +30,8 @@ class DriverRepository @Inject constructor(
     private val requestDao: RequestDao,
     private val bookingDao: BookingDao,
     private val session: SessionManager,
-    private val photoStore: PrivatePhotoStore
+    private val photoStore: PrivatePhotoStore,
+    private val db: AppDatabase
 ) {
     val requests: Flow<List<RideRequest>> = requestDao.observeAll().map { l -> l.map { it.toDomain() } }
 
@@ -39,16 +43,30 @@ class DriverRepository @Inject constructor(
 
     /** Fotos privadas del registro: "identity", "vehicle", "doc_LICENCIA"... */
     private val _photos = MutableStateFlow<Map<String, File>>(emptyMap())
-    val photos: StateFlow<Map<String, File>> = _photos.asStateFlow()
+    // La UI ve solamente las fotos de la sesión actual, incluso si cambia de cuenta.
+    val photos: Flow<Map<String, File>> = combine(_photos, session.state) { all, s ->
+        val prefix = "${s.user?.id ?: "no-session"}:"
+        all.filterKeys { it.startsWith(prefix) }.mapKeys { it.key.removePrefix(prefix) }
+    }
+
+    private fun photoKey(userId: Long, kind: String) = "user_${userId}_${kind}"
 
     suspend fun setPhoto(key: String, source: Any) {
-        val f = withContext(Dispatchers.IO) { photoStore.save(key, source) }
-        if (f != null) _photos.update { it + (key to f) }
+        val userId = session.current.user?.id ?: return
+        val f = withContext(Dispatchers.IO) { photoStore.save(photoKey(userId, key), source) }
+        if (f != null) _photos.update { it + ("$userId:$key" to f) }
     }
 
     fun removePhoto(key: String) {
-        photoStore.delete(key)
-        _photos.update { it - key }
+        val userId = session.current.user?.id ?: return
+        photoStore.delete(photoKey(userId, key))
+        _photos.update { it - "$userId:$key" }
+    }
+
+    /** Usado por baja de cuenta: nunca elimina archivos de otros usuarios. */
+    fun removeUserPhotos(userId: Long) {
+        photoStore.deleteForUser(userId)
+        _photos.update { it.filterKeys { storedKey -> !storedKey.startsWith("$userId:") } }
     }
 
     fun startOnboarding() = session.update {
@@ -69,8 +87,9 @@ class DriverRepository @Inject constructor(
     suspend fun approve() {
         val s = session.current
         session.update { it.copy(driverStatus = DriverStatus.APPROVED) }
-        if (routeDao.ownedCount() == 0) {
-            routeDao.insert(DemoData.ownRoute(s.user?.name ?: "Conductor", s.vehicle.description))
+        val userId = s.user?.id ?: return
+        if (routeDao.byOwner(userId).isEmpty()) {
+            routeDao.insert(DemoData.ownRoute(s.user?.name ?: "Conductor", s.vehicle.description).copy(ownerUserId = userId))
         }
     }
 
@@ -78,24 +97,30 @@ class DriverRepository @Inject constructor(
 
     /** Devuelve null si todo salió bien, o el mensaje de error. */
     suspend fun acceptRequest(id: Long, routeId: Long? = null): String? {
+        val userId = session.current.user?.id ?: return "Inicia sesión primero."
         if (session.current.isDisabled) return "Tu cuenta está inhabilitada. No puedes aceptar solicitudes."
-        val req = requestDao.get(id) ?: return "No encontramos la solicitud."
-        val route = (if (routeId != null) routeDao.get(routeId) else routeDao.firstOwnedActive())
-            ?: return "Necesitas una ruta activa para aceptar pasajeros."
-        if (route.status != RouteStatus.ACTIVE.name && route.status != RouteStatus.IN_PROGRESS.name) {
-            return "Esta ruta ya no acepta pasajeros."
+        val outcome = db.withTransaction {
+            val req = requestDao.get(id) ?: return@withTransaction "No encontramos la solicitud." to null
+            if (req.status != RequestStatus.PENDING.name) return@withTransaction "Esta solicitud ya fue atendida." to null
+            if (req.seats <= 0) return@withTransaction "La cantidad de asientos no es válida." to null
+            val route = (if (routeId != null) routeDao.get(routeId) else routeDao.byOwner(userId).firstOrNull {
+                it.status == RouteStatus.ACTIVE.name
+            }) ?: return@withTransaction "Necesitas una ruta activa para aceptar pasajeros." to null
+            if (route.ownerUserId != userId) return@withTransaction "Esta ruta no es tuya." to null
+            if (route.status != RouteStatus.ACTIVE.name && route.status != RouteStatus.IN_PROGRESS.name)
+                return@withTransaction "Esta ruta ya no acepta pasajeros." to null
+            if (routeDao.decrementSeatsIfAvailable(route.id, req.seats) != 1)
+                return@withTransaction "No tienes lugares disponibles." to null
+            if (requestDao.acceptIfPending(id, route.id) != 1)
+                error("No se pudo registrar la aceptación de la solicitud.")
+            null to Earning("${route.origin} → ${route.destination} · ${req.passengerName}", route.price * req.seats, "Hoy")
         }
-        if (route.seats < req.seats) return "No tienes lugares disponibles."
-        routeDao.update(route.copy(seats = route.seats - req.seats))
-        requestDao.update(req.copy(status = RequestStatus.ACCEPTED.name, routeId = route.id))
-        _earnings.update {
-            val amount = route.price * req.seats
-            it.copy(
-                month = it.month + amount, trips = it.trips + 1,
-                movements = listOf(Earning("${route.origin} → ${route.destination} · ${req.passengerName}", amount, "Hoy")) + it.movements
-            )
+        val (error, earning) = outcome
+        if (earning != null) _earnings.update {
+            it.copy(month = it.month + earning.amount, trips = it.trips + 1,
+                movements = listOf(earning) + it.movements)
         }
-        return null
+        return error
     }
 
     suspend fun rejectRequest(id: Long) {
@@ -168,7 +193,7 @@ class DriverRepository @Inject constructor(
     fun resetDemoState() {
         _earnings.value = DemoData.earnings()
         _incidents.value = DemoData.incidents()
-        photoStore.deleteAll()
+        // No limpiar archivos de otros usuarios durante un reinicio de DEMO.
         _photos.value = emptyMap()
     }
 

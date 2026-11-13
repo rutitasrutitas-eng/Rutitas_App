@@ -1,6 +1,8 @@
 package mx.edu.uttt.rutitas.repository
 
 import android.content.Context
+import androidx.room.withTransaction
+import mx.edu.uttt.rutitas.database.AppDatabase
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -33,6 +35,7 @@ class AuthRepository @Inject constructor(
     private val driverRepo: DriverRepository,
     private val seeder: DemoSeeder,
     private val session: SessionManager,
+    private val db: AppDatabase,
     @ApplicationContext context: Context
 ) {
     private val prefs = context.getSharedPreferences("rutitas_prefs", Context.MODE_PRIVATE)
@@ -159,31 +162,29 @@ class AuthRepository @Inject constructor(
     fun logout() = session.update { Session() }
 
     /**
-     * Elimina la cuenta de forma COMPLETA: perfil, reservas, rutas publicadas, solicitudes,
-     * registro de conductor y fotos privadas. Las cuentas demo también quedan eliminadas
-     * (se pueden recuperar con «Restaurar cuentas demo» en la pantalla de inicio de sesión).
+     * Baja LOCAL de la cuenta actual (DEMO). No afecta registros sin propietario
+     * identificado ni archivos privados de otros usuarios; NO elimina datos del servidor.
      */
     suspend fun deleteAccount() {
-        val u = session.current.user
-        if (u != null) {
-            reviewDao.deleteInvolving(u.name)
-            photoStore.delete(photoKey(u.id))
-            if (u.id > 0) {
-                userDao.delete(u.id)
-                // Libera los lugares de las reservas activas creadas por el usuario
-                bookingDao.activeCreated().forEach { b ->
-                    routeDao.get(b.routeId)?.let { routeDao.update(it.copy(seats = it.seats + b.seats)) }
-                }
-                bookingDao.deleteCreated()
-            } else {
-                prefs.edit().putBoolean("deleted_${u.email}", true).apply()
-                bookingDao.clear()
+        val u = session.current.user ?: return
+        db.withTransaction {
+            // Solo registros con ownerUserId explícito perteneciente al usuario.
+            bookingDao.activeForOwner(u.id).forEach { b ->
+                routeDao.restoreSeats(b.routeId, b.seats)
             }
+            bookingDao.deleteForOwner(u.id)
+            requestDao.deleteForOwner(u.id)
+            reviewDao.deleteForOwner(u.id)
+            // Las rutas con reservas ajenas se conservan CANCELLED para preservar referencias.
+            // Las restantes también quedan CANCELLED (borrado físico sujeto a política de retención).
+            routeDao.byOwner(u.id).forEach { route ->
+                routeDao.update(route.copy(status = "CANCELLED", ownedByMe = false))
+            }
+            if (u.id > 0) userDao.delete(u.id)
         }
-        routeDao.deleteOwned()
-        requestDao.clear()
-        requestDao.insertAll(DemoData.requests())
-        driverRepo.resetDemoState() // borra también las fotos privadas
+        photoStore.delete(photoKey(u.id))
+        driverRepo.removeUserPhotos(u.id)
+        if (u.id <= 0) prefs.edit().putBoolean("deleted_${u.email}", true).apply()
         session.update { Session() }
     }
 

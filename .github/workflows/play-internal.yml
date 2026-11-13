@@ -32,6 +32,18 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
         with:
           cache-provider: basic
+      - name: Bloquear publicación de versiones DEMO
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -Eq 'buildConfigField\("boolean", "DEMO_MODE", "true"\)' app/build.gradle.kts; then
+            echo "::error::Publicación bloqueada: Rutitas todavía utiliza DEMO_MODE=true."
+            exit 1
+          fi
+          if grep -Fq 'https://example.invalid/api/' app/build.gradle.kts; then
+            echo "::error::Publicación bloqueada: falta configurar y validar el backend real."
+            exit 1
+          fi
       - name: Validar credenciales
         env:
           UPLOAD_KEYSTORE_B64: ${{ secrets.UPLOAD_KEYSTORE_B64 }}
@@ -62,7 +74,7 @@ jobs:
           ./gradlew --no-daemon lintRelease testDebugUnitTest bundleRelease
           test -s app/build/outputs/bundle/release/app-release.aab
       - name: Subir SOLO como borrador a pruebas internas
-        uses: r0adkll/upload-google-play@v1
+        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5
         with:
           serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: mx.edu.uttt.rutitas
