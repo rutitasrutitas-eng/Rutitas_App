@@ -67,3 +67,25 @@ La frase anterior “No se ejecutaron Actions” se refiere a que esta auditorí
 - Detección de Gradle Wrapper: success.
 - Build/lint/tests Android: skipped; main no contiene wrapper/proyecto Android.
 - No hubo ejecución de play-internal ni package-release, publicación a Play, aprobación de deployment o merge.
+
+
+## Actualización de seguridad del repositorio — 2026-11-12
+
+Se completó la protección administrativa de `main` y se configuró `android-release` desde la sesión autorizada de `rutitasrutitas-eng`. La configuración se comprobó después de guardar y recargar GitHub.
+
+- Ruleset activo `Rutitas main: PR review y protección`, aplicable únicamente a `main`; la lista de bypass está vacía.
+- Requiere PR, una aprobación, descarta aprobaciones antiguas ante nuevos commits, exige aprobación de una persona distinta de quien hizo el push más reciente y resolución de conversaciones. Bloquea force-push y eliminación.
+- Los checks obligatorios quedan desactivados porque los nombres de jobs de `main` y PR #4 no coinciden. Se uniformarán y comprobarán antes de exigirlos.
+- `android-release`: revisor requerido `DxRxXgSo`, auto-revisión impedida, bypass administrativo desactivado, una sola rama permitida (`main`) y cero etiquetas. No tiene secretos ni variables configurados.
+- `android-play-internal` se volvió a revisar sin editar: conserva a `DxRxXgSo`, impide auto-revisión, no permite bypass y limita a `main` (cero etiquetas).
+- La lista de colaboradores confirmó a `DxRxXgSo` como colaborador y persona distinta de la autora de #4 (`america123create`).
+- PR [#4](https://github.com/rutitasrutitas-eng/Rutitas_App/pull/4) y [#5](https://github.com/rutitasrutitas-eng/Rutitas_App/pull/5) siguen abiertos y sin fusionar.
+- No se ejecutaron workflows de publicación, no se leyeron ni modificaron secretos, y no se cambiaron permisos de colaboradores.
+
+### Jobs y verificación de Actions
+
+En `main` los jobs son `sdd-and-security`, `detect-project` y `android-build` (condicional). El run de PR #4 muestra `Documentos, configuración y escaneo de secretos`, `Kotlin / Android - lint, unit tests, APK y androidTest APK` y `Emulador Android - prueba real de inicio`; sus nombres difieren. En el run documental [43333140707](https://github.com/rutitasrutitas-eng/Rutitas_App/actions/runs/43333140707), SDD/YAML/Gitleaks y detección de Gradle pasaron; el build Android se omitió porque `main` no contiene el proyecto Android.
+
+### Pendientes
+
+Integrar #4 solo después de revisión humana; unificar nombres y condiciones de checks y luego exigirlos; configurar credenciales de firma/Play únicamente en fase autorizada. El cuerpo del PR #5 aún contiene una frase anterior que dice que no se ejecutó Actions; esta actualización aclara que no hubo despacho manual ni distribución, aunque el PR activó CI automático.
