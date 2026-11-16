@@ -1,4 +1,4 @@
-﻿package mx.edu.uttt.rutitas
+package mx.edu.uttt.rutitas
 
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
@@ -8,6 +8,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import mx.edu.uttt.rutitas.data.DemoData
 import mx.edu.uttt.rutitas.data.DemoSeeder
+import mx.edu.uttt.rutitas.data.DriverLocalStore
 import mx.edu.uttt.rutitas.data.PrivatePhotoStore
 import mx.edu.uttt.rutitas.data.SessionManager
 import mx.edu.uttt.rutitas.database.AppDatabase
@@ -59,6 +60,7 @@ class DemoRestoreTest {
                 db.requestDao(),
                 db.bookingDao(),
                 session,
+                DriverLocalStore(context),
                 photoStore,
                 db
             )

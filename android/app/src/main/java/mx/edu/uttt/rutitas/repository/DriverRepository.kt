@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import mx.edu.uttt.rutitas.data.DemoData
 import mx.edu.uttt.rutitas.data.PrivatePhotoStore
+import mx.edu.uttt.rutitas.data.DriverLocalStore
 import mx.edu.uttt.rutitas.data.SessionManager
 import mx.edu.uttt.rutitas.database.BookingDao
 import mx.edu.uttt.rutitas.database.RequestDao
@@ -30,6 +31,7 @@ class DriverRepository @Inject constructor(
     private val requestDao: RequestDao,
     private val bookingDao: BookingDao,
     private val session: SessionManager,
+    private val driverLocalStore: DriverLocalStore,
     private val photoStore: PrivatePhotoStore,
     private val db: AppDatabase
 ) {
@@ -64,6 +66,22 @@ class DriverRepository @Inject constructor(
         if (f != null) _photos.update { it + ("$userId:$key" to f) }
     }
 
+    /** Recupera únicamente las fotos privadas del conductor actual. */
+    fun restorePhotos() {
+        val userId = session.current.user?.id ?: return
+
+        val keys = listOf("identity", "vehicle") +
+            DocKind.entries.map { "doc_${it.name}" }
+
+        val recovered = keys.mapNotNull { key ->
+            photoStore.fileFor(photoKey(userId, key))
+                ?.let { "$userId:$key" to it }
+        }.toMap()
+
+        _photos.update { current ->
+            current.filterKeys { !it.startsWith("$userId:") } + recovered
+        }
+    }
     fun removePhoto(key: String) {
         val userId = session.current.user?.id ?: return
         photoStore.delete(photoKey(userId, key))
@@ -76,24 +94,30 @@ class DriverRepository @Inject constructor(
         _photos.update { it.filterKeys { storedKey -> !storedKey.startsWith("$userId:") } }
     }
 
-    fun startOnboarding() = session.update {
-        if (it.driverStatus == DriverStatus.NONE) it.copy(driverStatus = DriverStatus.IN_PROGRESS) else it
+    fun startOnboarding() {
+        session.update { if (it.driverStatus == DriverStatus.NONE) it.copy(driverStatus = DriverStatus.IN_PROGRESS) else it }
+        persistDriver()
     }
 
-    fun saveVehicle(v: Vehicle) = session.update { it.copy(vehicle = v) }
+    private fun persistDriver() {
+        val current = session.current
+        current.user?.id?.let { driverLocalStore.save(it, current) }
+    }
+
+    fun saveVehicle(v: Vehicle) { session.update { it.copy(vehicle = v) }; persistDriver() }
 
     suspend fun setDoc(kind: DocKind, photo: Any?) {
         if (photo != null) setPhoto("doc_${kind.name}", photo)
-        session.update { it.copy(documents = it.documents + (kind to DocStatus.COMPLETED)) }
+        session.update { it.copy(documents = it.documents + (kind to DocStatus.COMPLETED)) }; persistDriver()
     }
 
-    fun completeAllDocs() = session.update { s -> s.copy(documents = DocKind.entries.associateWith { DocStatus.COMPLETED }) }
+    fun completeAllDocs() { session.update { s -> s.copy(documents = DocKind.entries.associateWith { DocStatus.COMPLETED }) }; persistDriver() }
 
-    fun submitForReview() = session.update { it.copy(driverStatus = DriverStatus.IN_REVIEW) }
+    fun submitForReview() { session.update { it.copy(driverStatus = DriverStatus.IN_REVIEW) }; persistDriver() }
 
     suspend fun approve() {
         val s = session.current
-        session.update { it.copy(driverStatus = DriverStatus.APPROVED) }
+        session.update { it.copy(driverStatus = DriverStatus.APPROVED) }; persistDriver()
         val userId = s.user?.id ?: return
         if (routeDao.byOwner(userId).isEmpty()) {
             routeDao.insert(DemoData.ownRoute(s.user?.name ?: "Conductor", s.vehicle.description).copy(ownerUserId = userId))

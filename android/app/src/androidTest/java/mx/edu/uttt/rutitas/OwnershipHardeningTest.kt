@@ -7,6 +7,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import mx.edu.uttt.rutitas.data.DriverLocalStore
 import mx.edu.uttt.rutitas.data.PrivatePhotoStore
 import mx.edu.uttt.rutitas.data.DemoSeeder
 import mx.edu.uttt.rutitas.data.SessionManager
@@ -54,7 +55,7 @@ class OwnershipHardeningTest {
         bookings = BookingRepository(db.bookingDao(), db.routeDao(), session, db)
         val api = Retrofit.Builder().baseUrl("https://example.invalid/").build().create(ApiService::class.java)
         routes = RouteRepository(db.routeDao(), api, session, db.bookingDao())
-        driver = DriverRepository(db.routeDao(), db.requestDao(), db.bookingDao(), session, PrivatePhotoStore(context), db)
+        driver = DriverRepository(db.routeDao(), db.requestDao(), db.bookingDao(), session, DriverLocalStore(context), PrivatePhotoStore(context), db)
         reviews = ReviewRepository(db.reviewDao(), session, db.bookingDao(), db.routeDao(), db.requestDao(), db)
     }
 
@@ -137,6 +138,7 @@ class OwnershipHardeningTest {
         assertTrue(driver.validateCode(routeB, code).isFailure)
         assertTrue(driver.validateCode(routeA, code).isSuccess)
         val second = DriverRepository(db.routeDao(), db.requestDao(), db.bookingDao(), session,
+            DriverLocalStore(ApplicationProvider.getApplicationContext()),
             PrivatePhotoStore(ApplicationProvider.getApplicationContext()), db)
         assertTrue(second.validateCode(routeA, code).isFailure)
         val cancelledId = bookings.reserve(routeA, "Coyote", 1).getOrThrow()
@@ -210,7 +212,7 @@ class OwnershipHardeningTest {
         val store = PrivatePhotoStore(context)
         val seeder = DemoSeeder(db.routeDao(), db.bookingDao(), db.requestDao(), db.reviewDao(), driver, session)
         val auth = AuthRepository(db.userDao(), db.bookingDao(), db.routeDao(), db.requestDao(),
-            db.reviewDao(), store, driver, seeder, session, db, context)
+            db.reviewDao(), store, DriverLocalStore(context), driver, seeder, session, db, context)
         auth.deleteAccount()
         assertNull(db.bookingDao().get(aBooking))
         assertNotNull(db.bookingDao().get(bBooking))
