@@ -6,6 +6,12 @@
 - **DEMO_MODE=true**, autenticación local de demostración (SHA-256 simple, **no apto para cuentas reales**), sin servicios remotos funcionales. La URL de release `example.invalid` es un marcador, no endpoint operativo.
 - Almacenamiento de fotos: claves diferenciadas por usuario y borrado individual; las fotos de claves antiguas sin propietario no se atribuyen automáticamente a nuevas cuentas.
 - Room: migración explícita `3 -> 4` agrega `ownerUserId` NULL a registros históricos; **no hay migraciones 1->3 verificadas**. `fallbackToDestructiveMigration()` se eliminó. Las operaciones de borrado solo abarcan registros de propietario conocido; los históricos requieren revisión de migración/retención.
+
+## Endurecimiento local APP-01/02/03 (13 de noviembre de 2026)
+
+La rama `fix/android-ownership-hardening` filtra reservas, rutas propias, solicitudes asignadas y reseñas por sesión y `ownerUserId`. Las rutas publicadas continúan visibles; las terminadas/canceladas solo se consultan por su dueño o por un pasajero con reserva propia. Los datos DEMO sembrados siguen identificados; los registros históricos con propietario `NULL` no se atribuyen por nombre ni por el indicador `ownedByMe`.
+
+Room v5 añade `boardingValidated` con migración explícita 4→5 y valor inicial falso, sin borrado de filas. Los códigos se validan para la ruta vigente, una vez, mediante actualización condicional. La comparación sin distinción de mayúsculas permite códigos de reservas ya guardadas. La migración 3→4→5 y 19 pruebas instrumentadas pasaron en emulador local; versiones 1/2 siguen pendientes. Este control protege el repositorio local DEMO: la autorización definitiva de usuarios y operaciones remotas requiere backend y autenticación productiva aprobados.
 - Reserva: actualización condicional de lugares y creación de reserva dentro de transacción local; evita sobreventa en el mismo dispositivo. La concurrencia entre dispositivos requiere operación atómica en backend.
 - Cancelación y aceptación: transiciones condicionales dentro de transacciones locales; siguen pendientes pruebas completas y autorización del backend para datos reales.
 - Baja de cuenta: afecta solo registros con propiedad explícita; rutas propias se marcan `CANCELLED` para conservar referencias ajenas. No se realiza baja de datos remotos.

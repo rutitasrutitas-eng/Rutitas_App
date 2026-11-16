@@ -47,3 +47,10 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
         }
     }
 }
+
+/** Estado de abordaje persistido; 0 conserva íntegros los registros de v4. */
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE bookings ADD COLUMN boardingValidated INTEGER NOT NULL DEFAULT 0")
+    }
+}

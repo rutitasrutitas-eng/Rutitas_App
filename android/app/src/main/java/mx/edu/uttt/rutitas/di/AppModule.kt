@@ -22,7 +22,7 @@ object DatabaseModule {
     @Provides @Singleton
     fun database(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "rutitas.db")
-            .addMigrations(MIGRATION_3_4)
+            .addMigrations(MIGRATION_3_4, MIGRATION_4_5)
             // Sin borrado destructivo de datos: versiones anteriores a 3 requieren migración aprobada.
             .build()
 

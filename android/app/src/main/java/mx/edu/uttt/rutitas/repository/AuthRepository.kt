@@ -9,6 +9,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import mx.edu.uttt.rutitas.data.DemoSeeder
 import mx.edu.uttt.rutitas.data.DemoData
+import mx.edu.uttt.rutitas.data.DriverLocalStore
 import mx.edu.uttt.rutitas.data.SessionManager
 import mx.edu.uttt.rutitas.database.BookingDao
 import mx.edu.uttt.rutitas.data.PrivatePhotoStore
@@ -32,6 +33,7 @@ class AuthRepository @Inject constructor(
     private val requestDao: RequestDao,
     private val reviewDao: ReviewDao,
     private val photoStore: PrivatePhotoStore,
+    private val driverLocalStore: DriverLocalStore,
     private val driverRepo: DriverRepository,
     private val seeder: DemoSeeder,
     private val session: SessionManager,
@@ -79,8 +81,7 @@ class AuthRepository @Inject constructor(
             return Result.failure(IllegalStateException("El correo de las cuentas demo no se puede cambiar."))
         }
         if (newName != u.name) {
-            reviewDao.renameFrom(u.name, newName)
-            reviewDao.renameTo(u.name, newName)
+            reviewDao.renameFromForOwner(u.id, u.name, newName)
         }
         session.update {
             it.copy(
@@ -112,6 +113,8 @@ class AuthRepository @Inject constructor(
                     entryTime = "7:00 AM", exitTime = "2:00 PM", privacyAccepted = true
                 )
             }
+            session.update { driverLocalStore.restore(it) }
+            driverRepo.restorePhotos()
             loadPhoto()
             return Result.success(false)
         }
@@ -122,6 +125,8 @@ class AuthRepository @Inject constructor(
                     accountStatus = AccountStatus.DISABLED, disabledReason = "Documento vencido"
                 )
             }
+            session.update { driverLocalStore.restore(it) }
+            driverRepo.restorePhotos()
             loadPhoto()
             return Result.success(true)
         }
@@ -135,6 +140,8 @@ class AuthRepository @Inject constructor(
                 entryTime = u.entry, exitTime = u.exit, privacyAccepted = u.privacy
             )
         }
+        session.update { driverLocalStore.restore(it) }
+        driverRepo.restorePhotos()
         loadPhoto()
             return Result.success(false)
     }
@@ -184,6 +191,7 @@ class AuthRepository @Inject constructor(
         }
         photoStore.delete(photoKey(u.id))
         driverRepo.removeUserPhotos(u.id)
+        driverLocalStore.clear(u.id)
         if (u.id <= 0) prefs.edit().putBoolean("deleted_${u.email}", true).apply()
         session.update { Session() }
     }
