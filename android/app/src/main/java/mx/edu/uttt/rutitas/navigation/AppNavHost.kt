@@ -31,7 +31,13 @@ fun AppNavHost() {
     val longArg = { name: String -> navArgument(name) { type = NavType.LongType } }
     val boolArg = { name: String -> navArgument(name) { type = NavType.BoolType } }
 
-    NavHost(nav, startDestination = Routes.MAP) {
+    val startRoute = if (mx.edu.uttt.rutitas.utils.AppConfig.DEMO_MODE) {
+        Routes.MAP
+    } else {
+        "backend_start"
+    }
+
+    NavHost(nav, startDestination = startRoute) {
         composable(Routes.MAP) {
             MapScreen(
                 onSearch = { passengerTab(Routes.SEARCH) }, onLogin = { nav.navigate(Routes.LOGIN) },
@@ -68,13 +74,61 @@ fun AppNavHost() {
         composable(Routes.DISABLED) { DisabledAccountScreen(onBack = back, onHome = { nav.toMapFresh() }) }
 
         // Autenticación y registro
+        composable("backend_start") {
+            BackendStartupScreen(
+                onFinished = { restored ->
+                    nav.navigate(
+                        if (restored) "backend_home" else Routes.LOGIN
+                    ) {
+                        popUpTo("backend_start") { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+        composable("backend_home") {
+            BackendHomeScreen(
+                onLoggedOut = {
+                    nav.navigate(Routes.LOGIN) {
+                        popUpTo("backend_home") { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
         composable(Routes.LOGIN) {
             LoginScreen(
-                onBack = back, onSuccess = { nav.toMapFresh() }, onDisabled = { nav.navigate(Routes.DISABLED) { popUpTo(Routes.MAP) } },
+                onBack = {
+                    if (mx.edu.uttt.rutitas.utils.AppConfig.DEMO_MODE) {
+                        back()
+                    }
+                }, onSuccess = {
+                    if (mx.edu.uttt.rutitas.utils.AppConfig.DEMO_MODE) {
+                        nav.toMapFresh()
+                    } else {
+                        nav.navigate("backend_home") {
+                            popUpTo(Routes.LOGIN) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                }, onDisabled = { nav.navigate(Routes.DISABLED) { popUpTo(Routes.MAP) } },
                 onRegister = { nav.navigate(Routes.REGISTER) }
             )
         }
-        composable(Routes.REGISTER) { RegisterScreen(onBack = back, onSuccess = { nav.navigate(Routes.LOCATION) }) }
+        composable(Routes.REGISTER) {
+            RegisterScreen(
+                onBack = back,
+                onSuccess = {
+                    if (mx.edu.uttt.rutitas.utils.AppConfig.DEMO_MODE) {
+                        nav.navigate(Routes.LOCATION)
+                    } else {
+                        nav.navigate(Routes.LOGIN) {
+                            popUpTo(Routes.REGISTER) { inclusive = true }
+                        }
+                    }
+                }
+            )
+        }
         composable(Routes.LOCATION) { LocationScreen(onBack = back, onContinue = { nav.navigate(Routes.schedule(false)) }) }
         composable(Routes.SCHEDULE, listOf(boolArg("edit"))) { e ->
             val edit = e.arguments?.getBoolean("edit") ?: false

@@ -14,6 +14,20 @@ val localProps = Properties().apply {
 }
 val mapsKey: String = System.getenv("MAPS_API_KEY")?.takeIf { it.isNotBlank() }
     ?: localProps.getProperty("MAPS_API_KEY", "")
+val backendBaseUrl = System.getenv("RUTITAS_BACKEND_URL")
+    ?.takeIf { it.isNotBlank() }
+    ?: localProps.getProperty(
+        "RUTITAS_BACKEND_URL",
+        "https://example.invalid/api/v1/"
+    )
+
+require(
+    backendBaseUrl.startsWith("https://") &&
+    backendBaseUrl.endsWith("/api/v1/")
+) {
+    "La URL del Backend debe usar HTTPS y terminar en /api/v1/"
+}
+
 val uploadStore = System.getenv("ANDROID_KEYSTORE_FILE")?.takeIf { it.isNotBlank() }
 val uploadPassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")?.takeIf { it.isNotBlank() }
 val uploadAlias = System.getenv("ANDROID_KEY_ALIAS")?.takeIf { it.isNotBlank() }
@@ -35,6 +49,7 @@ android {
 
         // Modo DEMO: todo funciona con datos locales (Room). Cambiar a false al tener backend.
         buildConfigField("boolean", "DEMO_MODE", "true")
+        buildConfigField("String", "BACKEND_BASE_URL", "\"$backendBaseUrl\"")
         buildConfigField("String", "BASE_URL", "\"https://example.invalid/api/\"")
         buildConfigField("String", "MAPS_API_KEY", "\"$mapsKey\"")
         manifestPlaceholders["MAPS_API_KEY"] = mapsKey.ifBlank { "NO_KEY_CONFIGURED" }
@@ -52,12 +67,12 @@ android {
     }
     buildTypes {
         debug {
-            // Únicamente para la API local del emulador; nunca para el paquete Play.
+            // Ãšnicamente para la API local del emulador; nunca para el paquete Play.
             buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:8080/api/\"")
         }
         release {
             isMinifyEnabled = false
-            // La release conserva modo demostración hasta implementar/autorizar backend productivo.
+            // La release conserva modo demostraciÃ³n hasta implementar/autorizar backend productivo.
             // Un AAB firmado NO acredita funcionalidad multiusuario real.
             buildConfigField("String", "BASE_URL", "\"https://example.invalid/api/\"")
             if (canSignRelease) signingConfig = signingConfigs.getByName("releaseUpload")
@@ -111,7 +126,7 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 
-    // Imágenes
+    // ImÃ¡genes
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("io.coil-kt:coil-gif:2.7.0")
 

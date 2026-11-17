@@ -33,11 +33,12 @@ class MapViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MapUiState())
 }
 
-data class AuthUiState(val loading: Boolean = false, val error: String? = null)
+data class AuthUiState(val loading: Boolean = false, val error: String? = null, val message: String? = null)
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     private val auth: AuthRepository,
+    private val backendAuth: BackendAuthRepository,
     sessionManager: SessionManager
 ) : ViewModel() {
     private val _ui = MutableStateFlow(AuthUiState())
@@ -49,21 +50,70 @@ class AuthViewModel @Inject constructor(
     fun login(email: String, pass: String, onDone: (disabled: Boolean) -> Unit) {
         viewModelScope.launch {
             _ui.value = AuthUiState(loading = true)
-            auth.login(email, pass)
-                .onSuccess { _ui.value = AuthUiState(); onDone(it) }
-                .onFailure { _ui.value = AuthUiState(error = it.message) }
+
+            if (mx.edu.uttt.rutitas.utils.AppConfig.DEMO_MODE) {
+                auth.login(email, pass)
+                    .onSuccess {
+                        _ui.value = AuthUiState()
+                        onDone(it)
+                    }
+                    .onFailure {
+                        _ui.value = AuthUiState(error = it.message)
+                    }
+            } else {
+                try {
+                    backendAuth.login(email.trim(), pass)
+                      _ui.value = AuthUiState()
+                      onDone(false)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    _ui.value = AuthUiState(
+                        error = "No fue posible iniciar sesion. Verifica tus datos y conexion."
+                    )
+                }
+            }
         }
     }
-
     fun register(name: String, email: String, pass: String, type: UserType, onDone: () -> Unit) {
         viewModelScope.launch {
             _ui.value = AuthUiState(loading = true)
-            auth.register(name, email, pass, type)
-                .onSuccess { _ui.value = AuthUiState(); onDone() }
-                .onFailure { _ui.value = AuthUiState(error = it.message) }
+
+            if (mx.edu.uttt.rutitas.utils.AppConfig.DEMO_MODE) {
+                auth.register(name, email, pass, type)
+                    .onSuccess {
+                        _ui.value = AuthUiState()
+                        onDone()
+                    }
+                    .onFailure {
+                        _ui.value = AuthUiState(error = it.message)
+                    }
+            } else {
+                if (pass.length < 12) {
+                    _ui.value = AuthUiState(
+                        error = "La contrasena debe tener al menos 12 caracteres."
+                    )
+                    return@launch
+                }
+
+                try {
+                    backendAuth.register(
+                        email = email.trim(),
+                        password = pass,
+                        displayName = name.trim()
+                    )
+                    _ui.value = AuthUiState()
+                    onDone()
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    _ui.value = AuthUiState(
+                        error = "No fue posible crear la cuenta. Verifica tus datos y conexion."
+                    )
+                }
+            }
         }
     }
-
     fun restoreDemo() {
         auth.restoreDemoAccounts()
         _ui.value = AuthUiState()
