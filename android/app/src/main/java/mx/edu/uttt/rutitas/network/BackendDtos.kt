@@ -1,4 +1,4 @@
-﻿package mx.edu.uttt.rutitas.network
+package mx.edu.uttt.rutitas.network
 
 data class RegisterRequestDto(
     val email: String,
@@ -72,8 +72,8 @@ data class PagedRoutesDto(
     val items: List<BackendRouteDto>,
     val page: Int,
     val pageSize: Int,
-    val total: Int,
-    val totalPages: Int
+    val total: Long,
+    val totalPages: Long
 )
 
 data class BackendProblemDto(

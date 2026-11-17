@@ -36,6 +36,11 @@ interface BackendApiService {
         @Body request: UpdateProfileRequestDto
     ): BackendUserDto
 
+    @PATCH("users/me")
+    suspend fun updateMyProfileJson(
+        @Body request: com.google.gson.JsonObject
+    ): BackendUserDto
+
     @GET("routes")
     suspend fun getRoutes(
         @Query("page") page: Int = 1,
