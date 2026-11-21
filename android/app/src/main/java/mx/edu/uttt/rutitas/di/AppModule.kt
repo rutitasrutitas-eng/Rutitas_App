@@ -10,6 +10,9 @@ import dagger.hilt.components.SingletonComponent
 import mx.edu.uttt.rutitas.BuildConfig
 import mx.edu.uttt.rutitas.database.*
 import mx.edu.uttt.rutitas.network.ApiService
+import mx.edu.uttt.rutitas.network.BackendApiService
+import mx.edu.uttt.rutitas.network.BackendAuthInterceptor
+import mx.edu.uttt.rutitas.network.BackendUnauthorizedInterceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -23,7 +26,7 @@ object DatabaseModule {
     fun database(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "rutitas.db")
             .addMigrations(MIGRATION_3_4, MIGRATION_4_5)
-            // Sin borrado destructivo de datos: versiones anteriores a 3 requieren migración aprobada.
+            // Sin borrado destructivo de datos: versiones anteriores a 3 requieren migraciÃƒÆ’Ã‚Â³n aprobada.
             .build()
 
     @Provides fun routeDao(db: AppDatabase): RouteDao = db.routeDao()
@@ -52,4 +55,23 @@ object NetworkModule {
 
     @Provides @Singleton
     fun api(retrofit: Retrofit): ApiService = retrofit.create(ApiService::class.java)
+
+    @Provides @Singleton
+    fun backendApi(
+        retrofit: Retrofit,
+        client: OkHttpClient,
+        authInterceptor: BackendAuthInterceptor,
+        unauthorizedInterceptor: BackendUnauthorizedInterceptor
+    ): BackendApiService {
+        val backendClient = client.newBuilder()
+            .addInterceptor(authInterceptor)
+            .addInterceptor(unauthorizedInterceptor)
+            .build()
+
+        return retrofit.newBuilder()
+            .baseUrl(BuildConfig.BACKEND_BASE_URL)
+            .client(backendClient)
+            .build()
+            .create(BackendApiService::class.java)
+    }
 }

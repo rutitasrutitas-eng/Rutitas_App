@@ -55,7 +55,12 @@ fun LoginScreen(
                 pass, { pass = it; vm.clearError() }, "Contraseña", password = true,
                 error = if (tried && pass.isBlank()) "Escribe tu contraseña" else null
             )
-            ui.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            ui.error?.let {
+                Text(it, color = MaterialTheme.colorScheme.error)
+            }
+            ui.message?.let {
+                Text(it, color = MaterialTheme.colorScheme.primary)
+            }
             if (ui.error?.contains("eliminada") == true) {
                 SecondaryButton("Restaurar cuentas demo", onClick = { vm.restoreDemo() })
             }
@@ -65,8 +70,10 @@ fun LoginScreen(
                     vm.login(email, pass) { disabled -> if (disabled) onDisabled() else onSuccess() }
                 }
             })
+            if (AppConfig.DEMO_MODE) {
             TextButton(onClick = { email = DemoData.DEMO_EMAIL; pass = DemoData.DEMO_PASSWORD }) {
                 Text("Usar cuenta demo (demo@rutitas.com)")
+            }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("¿No tienes cuenta?", color = RColors.Muted)
@@ -93,7 +100,8 @@ fun RegisterScreen(onBack: () -> Unit, onSuccess: () -> Unit, vm: AuthViewModel 
         !AppConfig.isInstitutionalEmail(email) -> "Usa el correo de tu institución (ej. nombre@uttt.edu.mx)"
         else -> null
     }
-    val passErr = if (tried && pass.length < 6) "Mínimo 6 caracteres" else null
+    val minPassword = if (AppConfig.DEMO_MODE) 6 else 12
+    val passErr = if (tried && pass.length < minPassword) "Mínimo $minPassword caracteres" else null
     val confErr = if (tried && confirm != pass) "Las contraseñas no coinciden" else null
 
     Scaffold(topBar = { RutitasTopBar("Registro", onBack) }, containerColor = MaterialTheme.colorScheme.background) { pad ->
@@ -107,16 +115,32 @@ fun RegisterScreen(onBack: () -> Unit, onSuccess: () -> Unit, vm: AuthViewModel 
             if (emailErr == null) Text("Dominios válidos: ${AppConfig.ALLOWED_DOMAINS.joinToString(", ")}", color = RColors.Muted, style = MaterialTheme.typography.bodySmall)
             RutitasField(pass, { pass = it }, "Contraseña", password = true, error = passErr)
             RutitasField(confirm, { confirm = it }, "Confirmar contraseña", password = true, error = confErr)
-            Text("Soy", style = MaterialTheme.typography.titleMedium)
-            ChipGroup(UserType.entries.map { it.label }, setOf(UserType.valueOf(type).label)) { label ->
-                type = UserType.entries.first { it.label == label }.name
+            if (AppConfig.DEMO_MODE) {
+                Text("Soy", style = MaterialTheme.typography.titleMedium)
+                ChipGroup(
+                    UserType.entries.map { it.label },
+                    setOf(UserType.valueOf(type).label)
+                ) { label ->
+                    type = UserType.entries.first { it.label == label }.name
+                }
+            } else {
+                Text(
+                    "El tipo de cuenta y los permisos se asignan desde el servidor.",
+                    color = RColors.Muted,
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
-            ui.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            ui.error?.let {
+                Text(it, color = MaterialTheme.colorScheme.error)
+            }
+            ui.message?.let {
+                Text(it, color = MaterialTheme.colorScheme.primary)
+            }
             Spacer(Modifier.height(4.dp))
             PrimaryButton("Crear cuenta", loading = ui.loading, onClick = {
                 tried = true
                 if (name.isNotBlank() && android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches() &&
-                    AppConfig.isInstitutionalEmail(email) && pass.length >= 6 && confirm == pass
+                    AppConfig.isInstitutionalEmail(email) && pass.length >= minPassword && confirm == pass
                 ) vm.register(name, email, pass, UserType.valueOf(type), onSuccess)
             })
             Spacer(Modifier.height(16.dp))
