@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import mx.edu.uttt.rutitas.viewmodel.BackendStartupStatus
 import mx.edu.uttt.rutitas.viewmodel.BackendStartupViewModel
 
 @Composable
@@ -16,24 +17,53 @@ fun BackendStartupScreen(
     onFinished: (Boolean) -> Unit,
     vm: BackendStartupViewModel = hiltViewModel()
 ) {
-    val restored = vm.restored.collectAsStateWithLifecycle().value
+    val status = vm.status.collectAsStateWithLifecycle().value
 
-    LaunchedEffect(restored) {
-        if (restored != null) {
-            onFinished(restored)
+    LaunchedEffect(status) {
+        when (status) {
+            BackendStartupStatus.VERIFIED -> onFinished(true)
+            BackendStartupStatus.LOGIN_REQUIRED -> onFinished(false)
+            else -> Unit
         }
     }
 
     Box(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            CircularProgressIndicator()
-            Text("Comprobando sesion...")
+            when (status) {
+                BackendStartupStatus.CHECKING -> {
+                    CircularProgressIndicator()
+                    Text("Comprobando sesion...")
+                }
+
+                BackendStartupStatus.RETRY -> {
+                    Text(
+                        "No se pudo verificar la sesion con el servidor.",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        "Tu sesion sigue guardada en este dispositivo."
+                    )
+                    Button(onClick = vm::retry) {
+                        Text("Reintentar conexion")
+                    }
+                    TextButton(onClick = { onFinished(false) }) {
+                        Text("Ir al inicio de sesion")
+                    }
+                }
+
+                BackendStartupStatus.VERIFIED,
+                BackendStartupStatus.LOGIN_REQUIRED -> {
+                    CircularProgressIndicator()
+                }
+            }
         }
     }
 }

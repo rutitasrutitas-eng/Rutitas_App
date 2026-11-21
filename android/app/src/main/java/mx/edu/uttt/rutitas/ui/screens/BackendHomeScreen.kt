@@ -12,6 +12,8 @@ import mx.edu.uttt.rutitas.viewmodel.BackendHomeViewModel
 
 @Composable
 fun BackendHomeScreen(
+    onOpenRoutes: () -> Unit,
+    onOpenProfile: () -> Unit,
     onLoggedOut: () -> Unit,
     vm: BackendHomeViewModel = hiltViewModel()
 ) {
@@ -45,6 +47,20 @@ fun BackendHomeScreen(
             if (user != null) {
                 Text("Nombre: ${user?.displayName.orEmpty()}")
                 Text("Correo: ${user?.email.orEmpty()}")
+
+                OutlinedButton(
+                    onClick = onOpenProfile,
+                    enabled = !ui.loading
+                ) {
+                    Text("Consultar y editar perfil")
+                }
+
+                OutlinedButton(
+                    onClick = onOpenRoutes,
+                    enabled = !ui.loading
+                ) {
+                    Text("Consultar rutas Backend")
+                }
             } else {
                 Text("No hay una sesion activa.")
             }
@@ -55,7 +71,10 @@ fun BackendHomeScreen(
             )
 
             ui.error?.let {
-                Text(it, color = MaterialTheme.colorScheme.error)
+                Text(
+                    it,
+                    color = MaterialTheme.colorScheme.error
+                )
             }
 
             Button(
@@ -71,7 +90,8 @@ fun BackendHomeScreen(
                 Text(
                     when {
                         ui.loading -> "Cerrando sesion..."
-                        user == null || ui.error != null -> "Volver al inicio de sesion"
+                        user == null || ui.error != null ->
+                            "Volver al inicio de sesion"
                         else -> "Cerrar sesion"
                     }
                 )

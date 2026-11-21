@@ -86,8 +86,20 @@ fun AppNavHost() {
                 }
             )
         }
+        composable("backend_routes") {
+            mx.edu.uttt.rutitas.ui.screens.BackendRoutesScreen(
+                onBack = { nav.popBackStack() }
+            )
+        }
+        composable("backend_profile") {
+            BackendProfileScreen(
+                onBack = { nav.popBackStack() }
+            )
+        }
         composable("backend_home") {
             BackendHomeScreen(
+                onOpenProfile = { nav.navigate("backend_profile") },
+                onOpenRoutes = { nav.navigate("backend_routes") },
                 onLoggedOut = {
                     nav.navigate(Routes.LOGIN) {
                         popUpTo("backend_home") { inclusive = true }
