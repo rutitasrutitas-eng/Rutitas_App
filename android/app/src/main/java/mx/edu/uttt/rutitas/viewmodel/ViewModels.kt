@@ -115,8 +115,17 @@ class AuthViewModel @Inject constructor(
         }
     }
     fun restoreDemo() {
-        auth.restoreDemoAccounts()
-        _ui.value = AuthUiState()
+        viewModelScope.launch {
+            _ui.value = AuthUiState(loading = true)
+            try {
+                auth.restoreDemoAccounts()
+                _ui.value = AuthUiState(message = "Cuentas DEMO restauradas.")
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _ui.value = AuthUiState(error = e.message ?: "Error al restaurar DEMO.")
+            }
+        }
     }
 
     fun setZone(zone: String) { viewModelScope.launch { auth.savePrefs(zone = zone) } }
@@ -231,7 +240,18 @@ class ProfileViewModel @Inject constructor(
     fun disable(reason: String) = sm.update { it.copy(accountStatus = AccountStatus.DISABLED, disabledReason = reason, reviewRequested = false) }
     fun enable() = sm.update { it.copy(accountStatus = AccountStatus.ACTIVE, disabledReason = null, reviewRequested = false) }
     fun requestReview() = sm.update { it.copy(reviewRequested = true) }
-    fun resetDemo() = seeder.reset()
+    fun resetDemo(onResult: (Result<Unit>) -> Unit) {
+        viewModelScope.launch {
+            try {
+                seeder.reset()
+                onResult(Result.success(Unit))
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                onResult(Result.failure(e))
+            }
+        }
+    }
 
     fun setPhoto(source: Any) { viewModelScope.launch { auth.setProfilePhoto(source) } }
     fun removePhoto() = auth.removeProfilePhoto()

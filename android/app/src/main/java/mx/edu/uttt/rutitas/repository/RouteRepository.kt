@@ -86,29 +86,36 @@ class RouteRepository @Inject constructor(
         return Result.success(id)
     }
 
-    /** Edita una ruta que aún no ha iniciado. */
+    /** Cambia detalles sin sobrescribir las plazas disminuidas por otras operaciones. */
     suspend fun update(
         id: Long, origin: String, destination: String, departure: String, seats: Int, price: Int,
         days: String, recurring: Boolean, waitMinutes: Int, stops: List<String>? = null
     ): Result<Unit> {
-        if (session.current.isDisabled) return Result.failure(IllegalStateException("Tu cuenta está inhabilitada. No puedes editar rutas."))
-        val r = dao.get(id) ?: return Result.failure(IllegalStateException("No encontramos la ruta."))
-        if (!ownedBy(r, session.current.user?.id)) return Result.failure(IllegalStateException("Esta ruta no es tuya."))
-        if (r.status != RouteStatus.ACTIVE.name && r.status != RouteStatus.INTERRUPTED.name) {
-            return Result.failure(IllegalStateException("Solo puedes editar rutas que no han iniciado."))
-        }
-        val dep = TimeUtils.toMinutes(departure) ?: return Result.failure(IllegalArgumentException("Hora inválida"))
+        val snapshot = session.current
+        val owner = snapshot.user?.id
+            ?: return Result.failure(IllegalStateException("Inicia sesion para editar."))
+        if (snapshot.isDisabled) return Result.failure(IllegalStateException("Cuenta inhabilitada."))
+        if (seats < 0) return Result.failure(IllegalArgumentException("Los asientos no pueden ser negativos."))
+        val current = dao.get(id)
+            ?: return Result.failure(IllegalStateException("No encontramos la ruta."))
+        if (!ownedBy(current, owner)) return Result.failure(IllegalStateException("Esta ruta no es tuya."))
+        if (current.status !in listOf(RouteStatus.ACTIVE.name, RouteStatus.INTERRUPTED.name))
+            return Result.failure(IllegalStateException("Esta ruta ya no admite edicion."))
+        val dep = TimeUtils.toMinutes(departure)
+            ?: return Result.failure(IllegalArgumentException("Hora invalida."))
         delay(300)
-        if (!ownedBy(r, session.current.user?.id)) return Result.failure(IllegalStateException("La sesión cambió."))
-        val newStops = (stops ?: if (origin == r.origin && destination == r.destination) r.stops.split("|") else defaultStops(origin, destination))
-            .joinToString("|")
-        dao.update(
-            r.copy(
-                origin = origin, destination = destination, departure = TimeUtils.format(dep),
-                arrival = TimeUtils.format(dep + 30), seats = seats, price = price, days = days,
-                recurring = recurring, waitMinutes = waitMinutes, stops = newStops
-            )
+        if (session.current.user?.id != owner || session.current.isDisabled)
+            return Result.failure(IllegalStateException("La sesion cambio durante la edicion."))
+        val newStops = (stops ?: if (origin == current.origin && destination == current.destination)
+            current.stops.split("|") else defaultStops(origin, destination)).joinToString("|")
+        val changed = dao.updateDetailsIfSafe(
+            id, owner, origin, destination, TimeUtils.format(dep), TimeUtils.format(dep + 30),
+            seats, price, days, recurring, waitMinutes, newStops
         )
+        if (changed != 1)
+            return Result.failure(IllegalStateException(
+                "La ruta o sus asientos cambiaron. Actualiza los datos antes de guardar."
+            ))
         return Result.success(Unit)
     }
 

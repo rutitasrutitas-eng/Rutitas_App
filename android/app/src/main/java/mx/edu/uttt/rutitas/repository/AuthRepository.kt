@@ -44,67 +44,100 @@ class AuthRepository @Inject constructor(
 
     private fun photoKey(userId: Long) = "profile_$userId"
 
-    /** Carga la foto de perfil guardada (si existe) para el usuario de la sesión. */
+    /** Carga la foto de perfil guardada (si existe) para el usuario de la sesiÃ³n. */
     private fun loadPhoto() {
-        val id = session.current.user?.id ?: return
-        session.update { it.copy(profilePhoto = photoStore.fileFor(photoKey(id))) }
+        val userId = session.current.user?.id ?: return
+        val photo = photoStore.fileFor(photoKey(userId))
+        session.update { current ->
+            if (current.user?.id == userId) current.copy(profilePhoto = photo) else current
+        }
     }
 
     suspend fun setProfilePhoto(source: Any) {
-        val id = session.current.user?.id ?: return
-        val f = withContext(Dispatchers.IO) { photoStore.save(photoKey(id), source) }
-        if (f != null) session.update { it.copy(profilePhoto = f) }
+        setProfilePhotoWithSaver(source) { key, value ->
+            withContext(Dispatchers.IO) { photoStore.save(key, value) }
+        }
+    }
+
+    internal suspend fun setProfilePhotoWithSaver(
+        source: Any,
+        saver: suspend (String, Any) -> java.io.File?
+    ) {
+        val userId = session.current.user?.id ?: return
+        val photo = saver(photoKey(userId), source)
+        if (photo != null) session.update { current ->
+            if (current.user?.id == userId) current.copy(profilePhoto = photo) else current
+        }
     }
 
     fun removeProfilePhoto() {
-        val id = session.current.user?.id ?: return
-        photoStore.delete(photoKey(id))
-        session.update { it.copy(profilePhoto = null) }
+        val userId = session.current.user?.id ?: return
+        photoStore.delete(photoKey(userId))
+        session.update { current ->
+            if (current.user?.id == userId) current.copy(profilePhoto = null) else current
+        }
     }
 
     /** Edita nombre, correo, tipo de usuario, zona y horario. */
     suspend fun updateProfile(
         name: String, email: String, type: UserType, zone: String?, shift: Shift, entry: String, exit: String
     ): Result<Unit> {
-        val u = session.current.user ?: return Result.failure(IllegalStateException("Inicia sesión primero."))
+        val original = session.current.user
+            ?: return Result.failure(IllegalStateException("Inicia sesion primero."))
+        val originalId = original.id
+        val originalEmail = original.email
         val newName = name.trim()
         val mail = email.trim().lowercase()
-        if (newName.isBlank()) return Result.failure(IllegalArgumentException("El nombre no puede estar vacío."))
-        if (u.id > 0) {
-            if (!AppConfig.isInstitutionalEmail(mail)) {
-                return Result.failure(IllegalArgumentException("Usa el correo de tu institución (ej. nombre@uttt.edu.mx)."))
+        if (newName.isBlank()) return Result.failure(IllegalArgumentException("El nombre no puede estar vacio."))
+        if (originalId > 0) {
+            if (!AppConfig.isInstitutionalEmail(mail))
+                return Result.failure(IllegalArgumentException("Usa correo institucional."))
+            if (mail != originalEmail &&
+                (mail == DemoData.DEMO_EMAIL || mail == DemoData.BLOCKED_EMAIL || userDao.findByEmail(mail) != null))
+                return Result.failure(IllegalStateException("Ya existe una cuenta con ese correo."))
+        } else if (mail != originalEmail) {
+            return Result.failure(IllegalStateException("El correo DEMO no se puede cambiar."))
+        }
+        if (session.current.user?.id != originalId || session.current.user?.email != originalEmail)
+            return Result.failure(IllegalStateException("La sesion cambio."))
+        try {
+            db.withTransaction {
+            if (session.current.user?.id != originalId || session.current.user?.email != originalEmail)
+                error("La sesion cambio durante el guardado.")
+            if (originalId > 0) {
+                userDao.get(originalId)?.let { current ->
+                    userDao.update(current.copy(name = newName, email = mail, type = type.name,
+                        zone = zone, shift = shift.name, entry = entry, exit = exit))
+                } ?: error("La cuenta ya no existe.")
             }
-            if (mail != u.email &&
-                (mail == DemoData.DEMO_EMAIL || mail == DemoData.BLOCKED_EMAIL || userDao.findByEmail(mail) != null)
-            ) return Result.failure(IllegalStateException("Ya existe una cuenta con ese correo."))
-        } else if (mail != u.email) {
-            return Result.failure(IllegalStateException("El correo de las cuentas demo no se puede cambiar."))
+            if (newName != original.name) reviewDao.renameFromForOwner(originalId, original.name, newName)
         }
-        if (newName != u.name) {
-            reviewDao.renameFromForOwner(u.id, u.name, newName)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return Result.failure(e)
         }
-        session.update {
-            it.copy(
-                user = u.copy(name = newName, email = mail, type = type, university = AppConfig.institutionFor(mail) ?: u.university),
-                zone = zone, shift = shift, entryTime = entry, exitTime = exit
-            )
+        var applied = false
+        session.update { current ->
+            if (current.user?.id == originalId && current.user?.email == originalEmail) {
+                applied = true
+                current.copy(user = original.copy(name = newName, email = mail, type = type,
+                    university = AppConfig.institutionFor(mail) ?: original.university),
+                    zone = zone, shift = shift, entryTime = entry, exitTime = exit)
+            } else current
         }
-        if (u.id > 0) {
-            userDao.get(u.id)?.let {
-                userDao.update(it.copy(name = newName, email = mail, type = type.name, zone = zone, shift = shift.name, entry = entry, exit = exit))
-            }
-        }
-        return Result.success(Unit)
+        return if (applied) Result.success(Unit)
+            else Result.failure(IllegalStateException("La sesion cambio durante el guardado."))
     }
 
     private fun isDeleted(email: String) = prefs.getBoolean("deleted_$email", false)
 
-    /** Devuelve Result<true> si la cuenta inició sesión pero está inhabilitada. */
+    /** Devuelve Result<true> si la cuenta iniciÃ³ sesiÃ³n pero estÃ¡ inhabilitada. */
     suspend fun login(email: String, password: String): Result<Boolean> {
         delay(500)
         val mail = email.trim().lowercase()
         if ((mail == DemoData.DEMO_EMAIL || mail == DemoData.BLOCKED_EMAIL) && isDeleted(mail)) {
-            return Result.failure(IllegalStateException("Esta cuenta fue eliminada. Pulsa «Restaurar cuentas demo» para volver a usarla."))
+            return Result.failure(IllegalStateException("Esta cuenta fue eliminada. Pulsa Â«Restaurar cuentas demoÂ» para volver a usarla."))
         }
         if (mail == DemoData.DEMO_EMAIL && password == DemoData.DEMO_PASSWORD) {
             session.update {
@@ -132,7 +165,7 @@ class AuthRepository @Inject constructor(
         }
         val u = userDao.findByEmail(mail)
         if (u == null || u.passwordHash != sha256(password)) {
-            return Result.failure(IllegalArgumentException("Correo o contraseña incorrectos."))
+            return Result.failure(IllegalArgumentException("Correo o contraseÃ±a incorrectos."))
         }
         session.update {
             Session(
@@ -150,7 +183,7 @@ class AuthRepository @Inject constructor(
         delay(400)
         val mail = email.trim().lowercase()
         if (!AppConfig.isInstitutionalEmail(mail)) {
-            return Result.failure(IllegalArgumentException("Usa el correo de tu institución (ej. nombre@uttt.edu.mx)."))
+            return Result.failure(IllegalArgumentException("Usa el correo de tu instituciÃ³n (ej. nombre@uttt.edu.mx)."))
         }
         if (mail == DemoData.DEMO_EMAIL || mail == DemoData.BLOCKED_EMAIL || userDao.findByEmail(mail) != null) {
             return Result.failure(IllegalStateException("Ya existe una cuenta con ese correo."))
@@ -162,7 +195,7 @@ class AuthRepository @Inject constructor(
                 exit = Shift.MATUTINO.exit, privacy = false
             )
         )
-        session.update { Session(user = UserProfile(id, name.trim(), mail, type, AppConfig.institutionFor(mail) ?: "Institución participante")) }
+        session.update { Session(user = UserProfile(id, name.trim(), mail, type, AppConfig.institutionFor(mail) ?: "InstituciÃ³n participante")) }
         return Result.success(Unit)
     }
 
@@ -175,7 +208,7 @@ class AuthRepository @Inject constructor(
     suspend fun deleteAccount() {
         val u = session.current.user ?: return
         db.withTransaction {
-            // Solo registros con ownerUserId explícito perteneciente al usuario.
+            // Solo registros con ownerUserId explÃ­cito perteneciente al usuario.
             bookingDao.activeForOwner(u.id).forEach { b ->
                 routeDao.restoreSeats(b.routeId, b.seats)
             }
@@ -183,7 +216,7 @@ class AuthRepository @Inject constructor(
             requestDao.deleteForOwner(u.id)
             reviewDao.deleteForOwner(u.id)
             // Las rutas con reservas ajenas se conservan CANCELLED para preservar referencias.
-            // Las restantes también quedan CANCELLED (borrado físico sujeto a política de retención).
+            // Las restantes tambiÃ©n quedan CANCELLED (borrado fÃ­sico sujeto a polÃ­tica de retenciÃ³n).
             routeDao.byOwner(u.id).forEach { route ->
                 routeDao.update(route.copy(status = "CANCELLED", ownedByMe = false))
             }
@@ -197,35 +230,56 @@ class AuthRepository @Inject constructor(
     }
 
     /** Recupera las cuentas demo eliminadas y restablece los datos de ejemplo. */
-    fun restoreDemoAccounts() {
-        prefs.edit().remove("deleted_${DemoData.DEMO_EMAIL}").remove("deleted_${DemoData.BLOCKED_EMAIL}").apply()
+    suspend fun restoreDemoAccounts() {
+        if (!AppConfig.DEMO_MODE) throw IllegalStateException("Solo disponible en DEMO.")
+        // No anuncia exito antes de terminar de reponer datos faltantes.
         seeder.reset()
+        val saved = prefs.edit()
+            .remove("deleted_${DemoData.DEMO_EMAIL}")
+            .remove("deleted_${DemoData.BLOCKED_EMAIL}").commit()
+        if (!saved) throw IllegalStateException("No se pudo restaurar la configuracion DEMO.")
+        session.update { current ->
+            if (current.user?.email in listOf(DemoData.DEMO_EMAIL, DemoData.BLOCKED_EMAIL))
+                Session() else current
+        }
     }
 
     suspend fun savePrefs(
         zone: String? = null, shift: Shift? = null, entry: String? = null, exit: String? = null,
         privacy: Boolean? = null
     ) {
-        session.update {
-            it.copy(
-                zone = zone ?: it.zone, shift = shift ?: it.shift,
-                entryTime = entry ?: it.entryTime, exitTime = exit ?: it.exitTime,
-                privacyAccepted = privacy ?: it.privacyAccepted
-            )
+        val before = session.current
+        val originalId = before.user?.id
+        val originalEmail = before.user?.email
+        val next = before.copy(zone = zone ?: before.zone, shift = shift ?: before.shift,
+            entryTime = entry ?: before.entryTime, exitTime = exit ?: before.exitTime,
+            privacyAccepted = privacy ?: before.privacyAccepted)
+        if (session.current.user?.id != originalId || session.current.user?.email != originalEmail)
+            throw IllegalStateException("La sesion cambio.")
+        if (originalId != null && originalId > 0) {
+            userDao.get(originalId)?.let { saved ->
+                userDao.update(saved.copy(zone = next.zone, shift = next.shift.name,
+                    entry = next.entryTime, exit = next.exitTime, privacy = next.privacyAccepted))
+            }
         }
-        val id = session.current.user?.id ?: return
-        if (id <= 0) return // las cuentas demo no se guardan en Room
-        val s = session.current
-        userDao.get(id)?.let {
-            userDao.update(
-                it.copy(zone = s.zone, shift = s.shift.name, entry = s.entryTime, exit = s.exitTime, privacy = s.privacyAccepted)
-            )
+        session.update { current ->
+            if (current.user?.id == originalId && current.user?.email == originalEmail)
+                current.copy(zone = next.zone, shift = next.shift, entryTime = next.entryTime,
+                    exitTime = next.exitTime, privacyAccepted = next.privacyAccepted)
+            else current
         }
     }
 
     suspend fun updateName(name: String) {
-        val u = session.current.user ?: return
-        session.update { it.copy(user = u.copy(name = name.trim())) }
-        if (u.id > 0) userDao.get(u.id)?.let { userDao.update(it.copy(name = name.trim())) }
+        val original = session.current.user ?: return
+        val normalized = name.trim()
+        if (normalized.isBlank()) return
+        if (original.id > 0) userDao.get(original.id)?.let {
+            userDao.update(it.copy(name = normalized))
+        }
+        session.update { current ->
+            if (current.user?.id == original.id && current.user?.email == original.email)
+                current.copy(user = original.copy(name = normalized)) else current
+        }
     }
 }

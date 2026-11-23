@@ -96,16 +96,27 @@ class BookingRepository @Inject constructor(
     suspend fun confirmPending(id: Long) {
         val userId = session.current.user?.id ?: return
         db.withTransaction {
-            dao.get(id)?.takeIf { visible(it, userId) && it.status == BookingStatus.PENDING.name }
-                ?.let { dao.update(it.copy(status = BookingStatus.CONFIRMED.name)) }
+            val booking = dao.get(id)?.takeIf { visible(it, userId) &&
+                it.status == BookingStatus.PENDING.name } ?: return@withTransaction
+            val route = routeDao.get(booking.routeId) ?: return@withTransaction
+            if (route.status !in listOf(RouteStatus.ACTIVE.name, RouteStatus.IN_PROGRESS.name))
+                return@withTransaction
+            if (session.current.user?.id != userId) return@withTransaction
+            dao.update(booking.copy(status = BookingStatus.CONFIRMED.name))
         }
     }
 
     suspend fun startTrip(id: Long) {
         val userId = session.current.user?.id ?: return
         db.withTransaction {
-            dao.get(id)?.takeIf { visible(it, userId) && it.status == BookingStatus.CONFIRMED.name && it.progress < 1 }
-                ?.let { dao.update(it.copy(progress = 1)) }
+            val booking = dao.get(id)?.takeIf { visible(it, userId) &&
+                it.status == BookingStatus.CONFIRMED.name && it.progress < 1 }
+                ?: return@withTransaction
+            val route = routeDao.get(booking.routeId) ?: return@withTransaction
+            if (route.status !in listOf(RouteStatus.ACTIVE.name, RouteStatus.IN_PROGRESS.name))
+                return@withTransaction
+            if (session.current.user?.id != userId) return@withTransaction
+            dao.update(booking.copy(progress = 1))
         }
     }
 
@@ -113,11 +124,16 @@ class BookingRepository @Inject constructor(
         val userId = session.current.user?.id ?: return
         if (stageCount <= 0) return
         db.withTransaction {
-            val b = dao.get(id)?.takeIf { visible(it, userId) && it.status == BookingStatus.CONFIRMED.name && it.progress > 0 }
+            val booking = dao.get(id)?.takeIf { visible(it, userId) &&
+                it.status == BookingStatus.CONFIRMED.name && it.progress > 0 }
                 ?: return@withTransaction
-            val p = (b.progress + 1).coerceAtMost(stageCount)
-            val status = if (p >= stageCount) BookingStatus.FINISHED.name else b.status
-            dao.update(b.copy(progress = p, status = status))
+            val route = routeDao.get(booking.routeId) ?: return@withTransaction
+            if (route.status !in listOf(RouteStatus.ACTIVE.name, RouteStatus.IN_PROGRESS.name))
+                return@withTransaction
+            if (session.current.user?.id != userId) return@withTransaction
+            val next = (booking.progress + 1).coerceAtMost(stageCount)
+            val status = if (next >= stageCount) BookingStatus.FINISHED.name else booking.status
+            dao.update(booking.copy(progress = next, status = status))
         }
     }
 

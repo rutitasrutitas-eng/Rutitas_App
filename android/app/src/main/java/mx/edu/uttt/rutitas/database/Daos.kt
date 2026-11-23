@@ -18,8 +18,28 @@ interface RouteDao {
     @Update suspend fun update(r: RouteEntity)
     @Query("DELETE FROM routes WHERE ownerUserId = :ownerId") suspend fun deleteForOwner(ownerId: Long)
     @Query("SELECT * FROM routes WHERE ownerUserId = :ownerId") suspend fun byOwner(ownerId: Long): List<RouteEntity>
-    @Query("UPDATE routes SET seats = seats - :quantity WHERE id = :id AND seats >= :quantity AND status IN ('ACTIVE','IN_PROGRESS')")
+    @Query("UPDATE routes SET seats = seats - :quantity WHERE id = :id AND :quantity > 0 AND seats >= :quantity AND status IN ('ACTIVE','IN_PROGRESS')")
     suspend fun decrementSeatsIfAvailable(id: Long, quantity: Int): Int
+    /** La edicion conserva los asientos ocupados y no pisa reservas concurrentes. */
+    @Query("""
+        UPDATE routes SET origin = :origin, destination = :destination,
+            departure = :departure, arrival = :arrival, seats = :seats,
+            price = :price, days = :days, recurring = :recurring,
+            waitMinutes = :waitMinutes, stops = :stops
+        WHERE id = :id AND ownerUserId = :ownerId
+            AND status IN ('ACTIVE','INTERRUPTED') AND :seats >= 0
+            AND (seats = :seats OR (
+                NOT EXISTS (SELECT 1 FROM bookings b WHERE b.routeId = :id
+                    AND b.status IN ('CONFIRMED','PENDING'))
+                AND NOT EXISTS (SELECT 1 FROM requests q WHERE q.routeId = :id
+                    AND q.status = 'ACCEPTED')
+            ))
+    """)
+    suspend fun updateDetailsIfSafe(
+        id: Long, ownerId: Long, origin: String, destination: String,
+        departure: String, arrival: String, seats: Int, price: Int,
+        days: String, recurring: Boolean, waitMinutes: Int, stops: String
+    ): Int
     @Query("UPDATE routes SET seats = seats + :quantity WHERE id = :id")
     suspend fun restoreSeats(id: Long, quantity: Int): Int
     @Query("DELETE FROM routes WHERE ownedByMe = 1") suspend fun deleteOwned()
@@ -45,6 +65,8 @@ interface BookingDao {
     @Query("DELETE FROM bookings WHERE ownerUserId = :ownerId") suspend fun deleteForOwner(ownerId: Long)
     @Query("UPDATE bookings SET status = 'CANCELLED' WHERE id = :id AND status IN ('CONFIRMED','PENDING')")
     suspend fun cancelIfActive(id: Long): Int
+    @Query("UPDATE bookings SET status = 'CANCELLED' WHERE routeId = :routeId AND status IN ('CONFIRMED','PENDING')")
+    suspend fun cancelActiveForRoute(routeId: Long): Int
     @Query("UPDATE bookings SET boardingValidated = 1 WHERE id = :id AND routeId = :routeId AND status = 'CONFIRMED' AND boardingValidated = 0")
     suspend fun markBoardedIfValid(id: Long, routeId: Long): Int
     @Query("DELETE FROM bookings WHERE seeded = 0") suspend fun deleteCreated()

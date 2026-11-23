@@ -62,8 +62,10 @@ class DriverRepository @Inject constructor(
 
     suspend fun setPhoto(key: String, source: Any) {
         val userId = session.current.user?.id ?: return
-        val f = withContext(Dispatchers.IO) { photoStore.save(photoKey(userId, key), source) }
-        if (f != null) _photos.update { it + ("$userId:$key" to f) }
+        val file = withContext(Dispatchers.IO) { photoStore.save(photoKey(userId, key), source) }
+        if (file != null && session.current.user?.id == userId) {
+            _photos.update { it + ("$userId:$key" to file) }
+        }
     }
 
     /** Recupera únicamente las fotos privadas del conductor actual. */
@@ -107,8 +109,14 @@ class DriverRepository @Inject constructor(
     fun saveVehicle(v: Vehicle) { session.update { it.copy(vehicle = v) }; persistDriver() }
 
     suspend fun setDoc(kind: DocKind, photo: Any?) {
+        val userId = session.current.user?.id ?: return
         if (photo != null) setPhoto("doc_${kind.name}", photo)
-        session.update { it.copy(documents = it.documents + (kind to DocStatus.COMPLETED)) }; persistDriver()
+        if (session.current.user?.id != userId) return
+        session.update { s ->
+            if (s.user?.id == userId)
+                s.copy(documents = s.documents + (kind to DocStatus.COMPLETED)) else s
+        }
+        if (session.current.user?.id == userId) persistDriver()
     }
 
     fun completeAllDocs() { session.update { s -> s.copy(documents = DocKind.entries.associateWith { DocStatus.COMPLETED }) }; persistDriver() }
@@ -236,11 +244,13 @@ class DriverRepository @Inject constructor(
     suspend fun cancelRoute(id: Long) {
         val userId = session.current.user?.id ?: return
         db.withTransaction {
-            val r = routeDao.get(id)?.takeIf { it.ownerUserId == userId &&
-                it.status in listOf(RouteStatus.ACTIVE.name, RouteStatus.IN_PROGRESS.name, RouteStatus.INTERRUPTED.name) }
-                ?: return@withTransaction
-            routeDao.update(r.copy(status = RouteStatus.CANCELLED.name))
+            if (session.current.user?.id != userId) return@withTransaction
+            val route = routeDao.get(id)?.takeIf { it.ownerUserId == userId &&
+                it.status in listOf(RouteStatus.ACTIVE.name, RouteStatus.IN_PROGRESS.name,
+                    RouteStatus.INTERRUPTED.name) } ?: return@withTransaction
+            routeDao.update(route.copy(status = RouteStatus.CANCELLED.name))
             requestDao.cancelAcceptedForRoute(id, userId)
+            bookingDao.cancelActiveForRoute(id)
         }
     }
 
