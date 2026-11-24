@@ -98,4 +98,154 @@ class DemoRestoreTest {
             db.close()
         }
     }
+
+    @Test
+    fun restoreDemoAccountsRecoversBothAccountsAndPreservesOtherData() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+
+        val prefs = context.getSharedPreferences(
+            "rutitas_app03_restore_instrumentation",
+            android.content.Context.MODE_PRIVATE
+        )
+
+        val isolatedContext = object : android.content.ContextWrapper(context) {
+            override fun getSharedPreferences(
+                name: String?,
+                mode: Int
+            ): android.content.SharedPreferences {
+                return if (name == "rutitas_prefs") {
+                    prefs
+                } else {
+                    super.getSharedPreferences(name, mode)
+                }
+            }
+        }
+
+        val db = Room.inMemoryDatabaseBuilder(
+            context,
+            AppDatabase::class.java
+        ).build()
+
+        try {
+            assertTrue(prefs.edit().clear().commit())
+
+            assertTrue(
+                prefs.edit()
+                    .putBoolean("deleted_${DemoData.DEMO_EMAIL}", true)
+                    .putBoolean("deleted_${DemoData.BLOCKED_EMAIL}", true)
+                    .commit()
+            )
+
+            val session = SessionManager()
+            val photoStore = PrivatePhotoStore(isolatedContext)
+            val driverStore = DriverLocalStore(isolatedContext)
+
+            val driverRepo = DriverRepository(
+                db.routeDao(),
+                db.requestDao(),
+                db.bookingDao(),
+                session,
+                driverStore,
+                photoStore,
+                db
+            )
+
+            val seeder = DemoSeeder(
+                db.routeDao(),
+                db.bookingDao(),
+                db.requestDao(),
+                db.reviewDao(),
+                driverRepo,
+                session
+            )
+
+            val auth = mx.edu.uttt.rutitas.repository.AuthRepository(
+                db.userDao(),
+                db.bookingDao(),
+                db.routeDao(),
+                db.requestDao(),
+                db.reviewDao(),
+                photoStore,
+                driverStore,
+                driverRepo,
+                seeder,
+                session,
+                db,
+                isolatedContext
+            )
+
+            val otherBooking = DemoData.bookings().first().copy(
+                code = "APP03-PRESERVE-BOOKING",
+                ownerUserId = 910001L,
+                seeded = false
+            )
+
+            val bookingId = db.bookingDao().insert(otherBooking)
+
+            assertTrue(
+                auth.login(
+                    DemoData.DEMO_EMAIL,
+                    DemoData.DEMO_PASSWORD
+                ).isFailure
+            )
+
+            assertTrue(
+                auth.login(
+                    DemoData.BLOCKED_EMAIL,
+                    DemoData.DEMO_PASSWORD
+                ).isFailure
+            )
+
+            auth.restoreDemoAccounts()
+
+            assertFalse(
+                prefs.contains("deleted_${DemoData.DEMO_EMAIL}")
+            )
+
+            assertFalse(
+                prefs.contains("deleted_${DemoData.BLOCKED_EMAIL}")
+            )
+
+            assertEquals(
+                "APP03-PRESERVE-BOOKING",
+                db.bookingDao().get(bookingId)?.code
+            )
+
+            assertEquals(
+                910001L,
+                db.bookingDao().get(bookingId)?.ownerUserId
+            )
+
+            assertEquals(4, db.routeDao().count())
+
+            assertEquals(
+                false,
+                auth.login(
+                    DemoData.DEMO_EMAIL,
+                    DemoData.DEMO_PASSWORD
+                ).getOrThrow()
+            )
+
+            assertEquals(
+                DemoData.demoUser.id,
+                session.current.user?.id
+            )
+
+            assertEquals(
+                true,
+                auth.login(
+                    DemoData.BLOCKED_EMAIL,
+                    DemoData.DEMO_PASSWORD
+                ).getOrThrow()
+            )
+
+            assertEquals(
+                DemoData.blockedUser.id,
+                session.current.user?.id
+            )
+        } finally {
+            prefs.edit().clear().commit()
+            db.close()
+        }
+    }
 }

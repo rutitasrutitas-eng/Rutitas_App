@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.net.Uri
+import android.util.AtomicFile
 import androidx.exifinterface.media.ExifInterface
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
@@ -23,34 +24,123 @@ import kotlin.math.max
  */
 @Singleton
 class PrivatePhotoStore @Inject constructor(@ApplicationContext private val context: Context) {
+    private companion object {
+        val diskLock = Any()
+        val validKey = Regex("[A-Za-z0-9_-]{1,100}")
+        val deletedAccounts = mutableSetOf<Long>()
+        val accountVersions = mutableMapOf<Long, Long>()
+        val profileKeyPattern = Regex("""^profile_(-?\d+)$""")
+        val driverKeyPattern = Regex("""^user_(-?\d+)_[A-Za-z0-9_-]+$""")
+    }
     private val dir: File get() = File(context.filesDir, "private_photos").apply { mkdirs() }
 
-    fun save(key: String, source: Any): File? {
-        return try {
-            val bitmap = decode(source) ?: return null
-            val dest = File(dir, "$key.jpg")
-            FileOutputStream(dest).use { bitmap.compress(Bitmap.CompressFormat.JPEG, 85, it) }
-            bitmap.recycle()
-            if (source is File) source.delete() // borra el temporal de la cámara
-            dest
+    fun accountPhotoVersion(userId: Long): Long = synchronized(diskLock) {
+        accountVersions[userId] ?: 0L
+    }
+
+    fun save(
+        key: String,
+        source: Any,
+        expectedVersion: Long? = null
+    ): File? = synchronized(diskLock) {
+        if (!validKey.matches(key)) return@synchronized null
+        val ownerId = profileKeyPattern.matchEntire(key)?.groupValues?.get(1)?.toLongOrNull()
+            ?: driverKeyPattern.matchEntire(key)?.groupValues?.get(1)?.toLongOrNull()
+        if (ownerId != null && ownerId in deletedAccounts) return@synchronized null
+        if (ownerId != null && expectedVersion != null &&
+            expectedVersion != (accountVersions[ownerId] ?: 0L)
+        ) return@synchronized null
+
+        val bitmap = try {
+            decode(source)
         } catch (e: Exception) {
             null
+        } ?: return null
+
+        val dest = File(dir, "$key.jpg")
+        val atomic = AtomicFile(dest)
+
+        var stream: FileOutputStream? = null
+
+        try {
+            stream = atomic.startWrite()
+
+            val compressed = bitmap.compress(
+                Bitmap.CompressFormat.JPEG, 85, stream
+            )
+
+            if (!compressed) {
+                throw java.io.IOException("No se pudo comprimir la imagen.")
+            }
+
+            atomic.finishWrite(stream)
+            stream = null
+
+            if (source is File &&
+                source.canonicalPath != dest.canonicalPath) {
+                source.delete()
+            }
+
+            dest
+        } catch (e: Exception) {
+            if (stream != null) {
+                atomic.failWrite(stream)
+            }
+            null
+        } finally {
+            bitmap.recycle()
         }
     }
 
-    fun fileFor(key: String): File? = File(dir, "$key.jpg").takeIf { it.exists() }
+    /** Bloquea nuevas fotos y elimina los archivos del usuario bajo diskLock. */
+    fun blockAccountPhotos(userId: Long) = synchronized(diskLock) {
+        deletedAccounts.add(userId)
+        accountVersions[userId] = (accountVersions[userId] ?: 0L) + 1L
+        AtomicFile(File(dir, "profile_${userId}.jpg")).delete()
+        deleteForUser(userId)
+    }
 
-    fun delete(key: String) { File(dir, "$key.jpg").delete() }
+    /** Recuperacion explicita de una cuenta DEMO. */
+    fun unblockAccountPhotos(userId: Long) = synchronized(diskLock) {
+        deletedAccounts.remove(userId)
+    }
+
+    fun fileFor(key: String): File? = synchronized(diskLock) {
+        if (!validKey.matches(key)) return@synchronized null
+        File(dir, "$key.jpg").takeIf { it.isFile }
+    }
+
+    fun delete(key: String) = synchronized(diskLock) {
+        if (validKey.matches(key)) {
+            AtomicFile(File(dir, "$key.jpg")).delete()
+        }
+    }
 
     /** Solo fotos de conductor con nombre perteneciente al usuario. La foto de perfil se gestiona aparte. */
-    fun deleteForUser(userId: Long) {
+    fun deleteForUser(userId: Long) = synchronized(diskLock) {
         val prefix = "user_${userId}_"
-        dir.listFiles()?.filter { it.isFile && it.name.startsWith(prefix) && it.extension == "jpg" }
-            ?.forEach { it.delete() }
+        val allowed = Regex(
+            """^${Regex.escape(prefix)}[A-Za-z0-9_-]+\.jpg(?:\.new|\.bak)?$"""
+        )
+
+        dir.listFiles()
+            ?.asSequence()
+            ?.filter { it.isFile && allowed.matches(it.name) }
+            ?.map { file ->
+                file.name
+                    .removeSuffix(".new")
+                    .removeSuffix(".bak")
+            }
+            ?.distinct()
+            ?.forEach { baseName ->
+                AtomicFile(File(dir, baseName)).delete()
+            }
     }
 
     /** Exclusivamente para reinicialización explícita de datos de prueba; NO usar en baja de cuenta. */
-    fun deleteAll() { dir.listFiles()?.forEach { it.delete() } }
+    fun deleteAll() = synchronized(diskLock) {
+        dir.listFiles()?.forEach { it.delete() }
+    }
 
     private fun open(source: Any): InputStream? = when (source) {
         is File -> source.inputStream()

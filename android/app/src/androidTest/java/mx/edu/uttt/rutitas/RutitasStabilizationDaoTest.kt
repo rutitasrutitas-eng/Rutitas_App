@@ -82,4 +82,88 @@ class RutitasStabilizationDaoTest {
             assertNotNull(db.reviewDao().findByRef(DemoData.reviews().first().refKey))
         } finally { db.close() }
     }
+
+    @Test
+    fun routeLifecyclePreservesSeatsAndOtherFields() = runBlocking {
+        val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val db = Room.inMemoryDatabaseBuilder(ctx, AppDatabase::class.java).build()
+
+        try {
+            val route = DemoData.routes().first().copy(
+                id = 72001L,
+                ownerUserId = 1001L,
+                seats = 2,
+                status = "ACTIVE",
+                progress = 0,
+                waitStartedAt = 0L
+            )
+
+            db.routeDao().insert(route)
+
+            assertEquals(1, db.routeDao().startRouteIfActive(route.id, 1001L))
+            assertEquals("IN_PROGRESS", db.routeDao().get(route.id)?.status)
+            assertEquals(1, db.routeDao().get(route.id)?.progress)
+
+            assertEquals(1, db.routeDao().advanceRouteIfInProgress(route.id, 1001L, 4))
+            assertEquals(2, db.routeDao().get(route.id)?.progress)
+
+            assertEquals(1, db.routeDao().startWaitIfInProgress(route.id, 1001L, 123456L))
+            assertEquals(123456L, db.routeDao().get(route.id)?.waitStartedAt)
+
+            assertEquals(1, db.routeDao().endWaitIfInProgress(route.id, 1001L))
+            assertEquals(0L, db.routeDao().get(route.id)?.waitStartedAt)
+
+            assertEquals(1, db.routeDao().finishRouteIfInProgress(route.id, 1001L))
+            assertEquals("FINISHED", db.routeDao().get(route.id)?.status)
+
+            val after = db.routeDao().get(route.id)!!
+            assertEquals(2, after.seats)
+            assertEquals(route.price, after.price)
+            assertEquals(route.origin, after.origin)
+            assertEquals(route.destination, after.destination)
+
+            assertEquals(0, db.routeDao().startRouteIfActive(route.id, 1001L))
+            assertEquals(0, db.routeDao().cancelRouteIfOpen(route.id, 1001L))
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun cancelledRouteRejectsTransitionsAndForeignOwner() = runBlocking {
+        val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val db = Room.inMemoryDatabaseBuilder(ctx, AppDatabase::class.java).build()
+
+        try {
+            val route = DemoData.routes().first().copy(
+                id = 72002L,
+                ownerUserId = 1001L,
+                seats = 3,
+                status = "ACTIVE",
+                progress = 0
+            )
+
+            db.routeDao().insert(route)
+
+            assertEquals(0, db.routeDao().startRouteIfActive(route.id, 2002L))
+            assertEquals(0, db.routeDao().cancelRouteIfOpen(route.id, 2002L))
+            assertEquals(1, db.routeDao().cancelRouteIfOpen(route.id, 1001L))
+
+            assertEquals(0, db.routeDao().startRouteIfActive(route.id, 1001L))
+            assertEquals(0, db.routeDao().advanceRouteIfInProgress(route.id, 1001L, 4))
+            assertEquals(0, db.routeDao().startWaitIfInProgress(route.id, 1001L, 123456L))
+            assertEquals(0, db.routeDao().endWaitIfInProgress(route.id, 1001L))
+            assertEquals(0, db.routeDao().finishRouteIfInProgress(route.id, 1001L))
+            assertEquals(0, db.routeDao().interruptIfAllowed(route.id, 1001L))
+            assertEquals(0, db.routeDao().changeStatusIfAllowed(route.id, 1001L, "ACTIVE"))
+            assertEquals(0, db.routeDao().cancelRouteIfOpen(route.id, 1001L))
+
+            val after = db.routeDao().get(route.id)!!
+            assertEquals("CANCELLED", after.status)
+            assertEquals(3, after.seats)
+            assertEquals(0, after.progress)
+        } finally {
+            db.close()
+        }
+    }
 }

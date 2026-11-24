@@ -16,6 +16,103 @@ interface RouteDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertDemoIfAbsent(r: List<RouteEntity>)
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertAll(r: List<RouteEntity>)
     @Update suspend fun update(r: RouteEntity)
+    @Query("""
+        UPDATE routes
+        SET status = CASE
+            WHEN status IN ('ACTIVE','IN_PROGRESS','INTERRUPTED')
+            THEN 'CANCELLED'
+            ELSE status
+        END,
+        ownedByMe = 0
+        WHERE id = :id AND ownerUserId = :ownerId
+    """)
+    suspend fun closeOwnedRoute(id: Long, ownerId: Long): Int
+
+    @Query("""
+        UPDATE routes
+        SET status = :newStatus
+        WHERE id = :id
+          AND ownerUserId = :ownerId
+          AND status IN ('ACTIVE','INTERRUPTED')
+          AND :newStatus IN ('ACTIVE','INTERRUPTED')
+    """)
+    suspend fun changeStatusIfAllowed(
+        id: Long,
+        ownerId: Long,
+        newStatus: String
+    ): Int
+
+    @Query("""
+        UPDATE routes
+        SET status = 'INTERRUPTED'
+        WHERE id = :id
+          AND ownerUserId = :ownerId
+          AND status IN ('ACTIVE','IN_PROGRESS')
+    """)
+    suspend fun interruptIfAllowed(id: Long, ownerId: Long): Int
+
+    @Query("""
+        UPDATE routes
+        SET status = 'IN_PROGRESS',
+            progress = 1
+        WHERE id = :id
+          AND ownerUserId = :ownerId
+          AND status = 'ACTIVE'
+    """)
+    suspend fun startRouteIfActive(id: Long, ownerId: Long): Int
+
+    @Query("""
+        UPDATE routes
+        SET progress = MIN(progress + 1, :stageCount),
+            waitStartedAt = 0
+        WHERE id = :id
+          AND ownerUserId = :ownerId
+          AND status = 'IN_PROGRESS'
+          AND :stageCount > 0
+    """)
+    suspend fun advanceRouteIfInProgress(
+        id: Long, ownerId: Long, stageCount: Int
+    ): Int
+
+    @Query("""
+        UPDATE routes
+        SET waitStartedAt = :startedAt
+        WHERE id = :id
+          AND ownerUserId = :ownerId
+          AND status = 'IN_PROGRESS'
+          AND :startedAt > 0
+    """)
+    suspend fun startWaitIfInProgress(
+        id: Long, ownerId: Long, startedAt: Long
+    ): Int
+
+    @Query("""
+        UPDATE routes
+        SET waitStartedAt = 0
+        WHERE id = :id
+          AND ownerUserId = :ownerId
+          AND status = 'IN_PROGRESS'
+    """)
+    suspend fun endWaitIfInProgress(id: Long, ownerId: Long): Int
+
+    @Query("""
+        UPDATE routes
+        SET status = 'FINISHED'
+        WHERE id = :id
+          AND ownerUserId = :ownerId
+          AND status = 'IN_PROGRESS'
+    """)
+    suspend fun finishRouteIfInProgress(id: Long, ownerId: Long): Int
+
+    @Query("""
+        UPDATE routes
+        SET status = 'CANCELLED'
+        WHERE id = :id
+          AND ownerUserId = :ownerId
+          AND status IN ('ACTIVE','IN_PROGRESS','INTERRUPTED')
+    """)
+    suspend fun cancelRouteIfOpen(id: Long, ownerId: Long): Int
+
     @Query("DELETE FROM routes WHERE ownerUserId = :ownerId") suspend fun deleteForOwner(ownerId: Long)
     @Query("SELECT * FROM routes WHERE ownerUserId = :ownerId") suspend fun byOwner(ownerId: Long): List<RouteEntity>
     @Query("UPDATE routes SET seats = seats - :quantity WHERE id = :id AND :quantity > 0 AND seats >= :quantity AND status IN ('ACTIVE','IN_PROGRESS')")
@@ -42,6 +139,20 @@ interface RouteDao {
     ): Int
     @Query("UPDATE routes SET seats = seats + :quantity WHERE id = :id")
     suspend fun restoreSeats(id: Long, quantity: Int): Int
+    @Query("""
+        UPDATE routes
+        SET seats = seats + :quantity
+        WHERE id = :routeId
+          AND ownerUserId != :deletedUserId
+          AND status IN ('ACTIVE','IN_PROGRESS')
+          AND :quantity > 0
+    """)
+    suspend fun restoreSeatsForAccountDeletion(
+        routeId: Long,
+        quantity: Int,
+        deletedUserId: Long
+    ): Int
+
     @Query("DELETE FROM routes WHERE ownedByMe = 1") suspend fun deleteOwned()
     @Query("DELETE FROM routes") suspend fun clear()
 }
@@ -82,13 +193,16 @@ interface RequestDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertDemoIfAbsent(r: List<RequestEntity>)
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertAll(r: List<RequestEntity>)
     @Update suspend fun update(r: RequestEntity)
+    @Query("UPDATE requests SET status = 'CANCELLED' WHERE ownerUserId = :ownerId AND status IN ('PENDING','ACCEPTED')")
+    suspend fun cancelOpenForOwner(ownerId: Long): Int
+
     @Query("DELETE FROM requests WHERE ownerUserId = :ownerId") suspend fun deleteForOwner(ownerId: Long)
     @Query("UPDATE requests SET status = 'ACCEPTED', routeId = :routeId, ownerUserId = :ownerId WHERE id = :id AND status = 'PENDING' AND (ownerUserId = :ownerId OR (ownerUserId IS NULL AND routeId = 0))")
     suspend fun acceptIfPending(id: Long, routeId: Long, ownerId: Long): Int
     @Query("UPDATE requests SET validated = 1 WHERE id = :id AND routeId = :routeId AND ownerUserId = :ownerId AND status = 'ACCEPTED' AND validated = 0")
     suspend fun markValidatedIfAccepted(id: Long, routeId: Long, ownerId: Long): Int
-    @Query("UPDATE requests SET status = 'CANCELLED' WHERE routeId = :routeId AND ownerUserId = :ownerId AND status = 'ACCEPTED'")
-    suspend fun cancelAcceptedForRoute(routeId: Long, ownerId: Long): Int
+    @Query("UPDATE requests SET status = 'CANCELLED' WHERE routeId = :routeId AND ownerUserId = :ownerId AND status IN ('PENDING','ACCEPTED')")
+    suspend fun cancelOpenForRoute(routeId: Long, ownerId: Long): Int
     @Query("DELETE FROM requests") suspend fun clear()
 }
 

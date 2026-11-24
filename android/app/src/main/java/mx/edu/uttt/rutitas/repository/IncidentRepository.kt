@@ -27,7 +27,7 @@ class IncidentRepository @Inject constructor(
         val route = routeDao.get(routeId)?.takeIf { it.ownerUserId == userId } ?: return 0
         var notified = 0
         if (type == IncidentType.BREAKDOWN) {
-            routeDao.update(route.copy(status = RouteStatus.INTERRUPTED.name))
+            if (routeDao.interruptIfAllowed(routeId, userId) != 1) return 0
             notified = bookingDao.activeForRoute(routeId)
         }
         driverRepo.addIncident(

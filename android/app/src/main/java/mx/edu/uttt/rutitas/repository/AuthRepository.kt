@@ -43,6 +43,16 @@ class AuthRepository @Inject constructor(
     private val prefs = context.getSharedPreferences("rutitas_prefs", Context.MODE_PRIVATE)
 
     private fun photoKey(userId: Long) = "profile_$userId"
+    private val photoDeletionEpochs = mutableMapOf<Long, Long>()
+
+    @Synchronized
+    private fun photoDeletionEpoch(userId: Long): Long =
+        photoDeletionEpochs[userId] ?: 0L
+
+    @Synchronized
+    private fun markPhotoAccountDeleted(userId: Long) {
+        photoDeletionEpochs[userId] = photoDeletionEpoch(userId) + 1L
+    }
 
     /** Carga la foto de perfil guardada (si existe) para el usuario de la sesiÃ³n. */
     private fun loadPhoto() {
@@ -54,17 +64,25 @@ class AuthRepository @Inject constructor(
     }
 
     suspend fun setProfilePhoto(source: Any) {
-        setProfilePhotoWithSaver(source) { key, value ->
-            withContext(Dispatchers.IO) { photoStore.save(key, value) }
+        setProfilePhotoWithSaver(source) { key, value, version ->
+            withContext(Dispatchers.IO) { photoStore.save(key, value, version) }
         }
     }
 
     internal suspend fun setProfilePhotoWithSaver(
         source: Any,
-        saver: suspend (String, Any) -> java.io.File?
+        saver: suspend (String, Any, Long) -> java.io.File?
     ) {
         val userId = session.current.user?.id ?: return
-        val photo = saver(photoKey(userId), source)
+        val startedEpoch = photoDeletionEpoch(userId)
+        val version = photoStore.accountPhotoVersion(userId)
+        val photo = saver(photoKey(userId), source, version)
+
+        if (photo != null && photoDeletionEpoch(userId) != startedEpoch) {
+            // No borrar una foto que podria pertenecer a un guardado posterior.
+            return
+        }
+
         if (photo != null) session.update { current ->
             if (current.user?.id == userId) current.copy(profilePhoto = photo) else current
         }
@@ -210,19 +228,21 @@ class AuthRepository @Inject constructor(
         db.withTransaction {
             // Solo registros con ownerUserId explÃ­cito perteneciente al usuario.
             bookingDao.activeForOwner(u.id).forEach { b ->
-                routeDao.restoreSeats(b.routeId, b.seats)
+                routeDao.restoreSeatsForAccountDeletion(b.routeId, b.seats, u.id)
             }
             bookingDao.deleteForOwner(u.id)
-            requestDao.deleteForOwner(u.id)
+            requestDao.cancelOpenForOwner(u.id)
             reviewDao.deleteForOwner(u.id)
-            // Las rutas con reservas ajenas se conservan CANCELLED para preservar referencias.
-            // Las restantes tambiÃ©n quedan CANCELLED (borrado fÃ­sico sujeto a polÃ­tica de retenciÃ³n).
+            // Conserva reservas de pasajeros y el historial de rutas.
             routeDao.byOwner(u.id).forEach { route ->
-                routeDao.update(route.copy(status = "CANCELLED", ownedByMe = false))
+                requestDao.cancelOpenForRoute(route.id, u.id)
+                bookingDao.cancelActiveForRoute(route.id)
+                routeDao.closeOwnedRoute(route.id, u.id)
             }
             if (u.id > 0) userDao.delete(u.id)
         }
-        photoStore.delete(photoKey(u.id))
+        markPhotoAccountDeleted(u.id)
+        photoStore.blockAccountPhotos(u.id)
         driverRepo.removeUserPhotos(u.id)
         driverLocalStore.clear(u.id)
         if (u.id <= 0) prefs.edit().putBoolean("deleted_${u.email}", true).apply()
@@ -238,6 +258,8 @@ class AuthRepository @Inject constructor(
             .remove("deleted_${DemoData.DEMO_EMAIL}")
             .remove("deleted_${DemoData.BLOCKED_EMAIL}").commit()
         if (!saved) throw IllegalStateException("No se pudo restaurar la configuracion DEMO.")
+        photoStore.unblockAccountPhotos(DemoData.demoUser.id)
+        photoStore.unblockAccountPhotos(DemoData.blockedUser.id)
         session.update { current ->
             if (current.user?.email in listOf(DemoData.DEMO_EMAIL, DemoData.BLOCKED_EMAIL))
                 Session() else current

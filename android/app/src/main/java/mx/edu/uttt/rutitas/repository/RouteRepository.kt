@@ -124,9 +124,11 @@ class RouteRepository @Inject constructor(
 
     suspend fun setStatus(id: Long, status: RouteStatus) {
         val userId = session.current.user?.id ?: return
-        dao.get(id)?.takeIf { ownedBy(it, userId) &&
-            (it.status == RouteStatus.ACTIVE.name || it.status == RouteStatus.INTERRUPTED.name) &&
-            (status == RouteStatus.ACTIVE || status == RouteStatus.INTERRUPTED) }
-            ?.let { dao.update(it.copy(status = status.name)) }
+        if (session.current.isDisabled) return
+
+        if (status != RouteStatus.ACTIVE &&
+            status != RouteStatus.INTERRUPTED) return
+
+        dao.changeStatusIfAllowed(id, userId, status.name)
     }
 }

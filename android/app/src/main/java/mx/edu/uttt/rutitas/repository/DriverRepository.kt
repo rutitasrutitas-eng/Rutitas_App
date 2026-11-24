@@ -62,7 +62,10 @@ class DriverRepository @Inject constructor(
 
     suspend fun setPhoto(key: String, source: Any) {
         val userId = session.current.user?.id ?: return
-        val file = withContext(Dispatchers.IO) { photoStore.save(photoKey(userId, key), source) }
+        val version = photoStore.accountPhotoVersion(userId)
+        val file = withContext(Dispatchers.IO) {
+            photoStore.save(photoKey(userId, key), source, version)
+        }
         if (file != null && session.current.user?.id == userId) {
             _photos.update { it + ("$userId:$key" to file) }
         }
@@ -209,7 +212,12 @@ class DriverRepository @Inject constructor(
         val r = routeDao.get(id) ?: return "No encontramos la ruta."
         if (r.ownerUserId != userId) return "Esta ruta no es tuya."
         if (r.status != RouteStatus.ACTIVE.name) return "Solo puedes iniciar una ruta activa."
-        routeDao.update(r.copy(status = RouteStatus.IN_PROGRESS.name, progress = 1))
+        if (session.current.user?.id != userId || session.current.isDisabled)
+            return "La sesion cambio o esta inhabilitada."
+
+        if (routeDao.startRouteIfActive(id, userId) != 1)
+            return "La ruta cambio de estado. Actualiza los datos."
+
         return null
     }
 
@@ -217,27 +225,27 @@ class DriverRepository @Inject constructor(
         val userId = session.current.user?.id ?: return
         val r = routeDao.get(id)?.takeIf { it.ownerUserId == userId && it.status == RouteStatus.IN_PROGRESS.name } ?: return
         if (stageCount <= 0) return
-        routeDao.update(r.copy(progress = (r.progress + 1).coerceAtMost(stageCount), waitStartedAt = 0L))
+        routeDao.advanceRouteIfInProgress(id, userId, stageCount)
     }
 
     /** El conductor llegó al punto de encuentro: empieza a correr el tiempo de espera. */
     suspend fun startWait(id: Long) {
         val userId = session.current.user?.id ?: return
         val r = routeDao.get(id)?.takeIf { it.ownerUserId == userId && it.status == RouteStatus.IN_PROGRESS.name } ?: return
-        routeDao.update(r.copy(waitStartedAt = System.currentTimeMillis()))
+        routeDao.startWaitIfInProgress(id, userId, System.currentTimeMillis())
     }
 
     /** Termina la espera antes de tiempo (el pasajero ya abordó o no se presentó). */
     suspend fun endWait(id: Long) {
         val userId = session.current.user?.id ?: return
         val r = routeDao.get(id)?.takeIf { it.ownerUserId == userId && it.status == RouteStatus.IN_PROGRESS.name } ?: return
-        routeDao.update(r.copy(waitStartedAt = 0L))
+        routeDao.endWaitIfInProgress(id, userId)
     }
 
     suspend fun finishRoute(id: Long) {
         val userId = session.current.user?.id ?: return
         val r = routeDao.get(id)?.takeIf { it.ownerUserId == userId && it.status == RouteStatus.IN_PROGRESS.name } ?: return
-        routeDao.update(r.copy(status = RouteStatus.FINISHED.name))
+        routeDao.finishRouteIfInProgress(id, userId)
     }
 
     /** Cancela el viaje: la ruta pasa a Cancelada y se avisa (simulado) a los pasajeros aceptados. */
@@ -248,8 +256,8 @@ class DriverRepository @Inject constructor(
             val route = routeDao.get(id)?.takeIf { it.ownerUserId == userId &&
                 it.status in listOf(RouteStatus.ACTIVE.name, RouteStatus.IN_PROGRESS.name,
                     RouteStatus.INTERRUPTED.name) } ?: return@withTransaction
-            routeDao.update(route.copy(status = RouteStatus.CANCELLED.name))
-            requestDao.cancelAcceptedForRoute(id, userId)
+            if (routeDao.cancelRouteIfOpen(id, userId) != 1) return@withTransaction
+            requestDao.cancelOpenForRoute(id, userId)
             bookingDao.cancelActiveForRoute(id)
         }
     }
