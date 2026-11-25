@@ -56,10 +56,10 @@ class AccountPhotoBlockingTest {
             store.unblockAccountPhotos(userId)
 
             assertNotNull(
-                store.save(profileKey, createSource())
+                store.save(profileKey, createSource(), store.accountPhotoVersion(userId))
             )
             assertNotNull(
-                store.save(driverKey, createSource())
+                store.save(driverKey, createSource(), store.accountPhotoVersion(userId))
             )
 
             store.blockAccountPhotos(userId)
@@ -72,10 +72,10 @@ class AccountPhotoBlockingTest {
 
             try {
                 assertNull(
-                    store.save(profileKey, rejectedProfile)
+                    store.save(profileKey, rejectedProfile, store.accountPhotoVersion(userId))
                 )
                 assertNull(
-                    store.save(driverKey, rejectedDriver)
+                    store.save(driverKey, rejectedDriver, store.accountPhotoVersion(userId))
                 )
             } finally {
                 rejectedProfile.delete()
@@ -88,10 +88,10 @@ class AccountPhotoBlockingTest {
             store.unblockAccountPhotos(userId)
 
             assertNotNull(
-                store.save(profileKey, createSource())
+                store.save(profileKey, createSource(), store.accountPhotoVersion(userId))
             )
             assertNotNull(
-                store.save(driverKey, createSource())
+                store.save(driverKey, createSource(), store.accountPhotoVersion(userId))
             )
         } finally {
             store.blockAccountPhotos(userId)

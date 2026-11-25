@@ -170,9 +170,10 @@ class DriverRepository @Inject constructor(
 
     suspend fun rejectRequest(id: Long) {
         val userId = session.current.user?.id ?: return
+        if (session.current.isDisabled) return
         db.withTransaction {
-            requestDao.get(id)?.takeIf { it.ownerUserId == userId && it.status == RequestStatus.PENDING.name }
-                ?.let { requestDao.update(it.copy(status = RequestStatus.REJECTED.name)) }
+            if (session.current.user?.id != userId) return@withTransaction
+            requestDao.rejectIfPending(id, userId)
         }
     }
 

@@ -42,6 +42,57 @@ class AuthRepository @Inject constructor(
 ) {
     private val prefs = context.getSharedPreferences("rutitas_prefs", Context.MODE_PRIVATE)
 
+    private fun isKnownDemoAccount(id: Long, email: String): Boolean =
+        (id == DemoData.demoUser.id && email == DemoData.DEMO_EMAIL) ||
+            (id == DemoData.blockedUser.id && email == DemoData.BLOCKED_EMAIL)
+
+    private fun demoProfilePrefix(id: Long) = "demo_profile_${id}_"
+
+    private fun restoredDemoSession(default: Session): Session {
+        val base = default.user ?: return default
+        val prefix = demoProfilePrefix(base.id)
+
+        val name = prefs.getString("${prefix}name", base.name)
+            ?.takeIf { it.isNotBlank() } ?: base.name
+
+        val type = runCatching {
+            UserType.valueOf(
+                prefs.getString("${prefix}type", base.type.name)
+                    ?: base.type.name
+            )
+        }.getOrDefault(base.type)
+
+        val shift = runCatching {
+            Shift.valueOf(
+                prefs.getString("${prefix}shift", default.shift.name)
+                    ?: default.shift.name
+            )
+        }.getOrDefault(default.shift)
+
+        return default.copy(
+            user = base.copy(name = name, type = type),
+            zone = prefs.getString("${prefix}zone", default.zone),
+            shift = shift,
+            entryTime = prefs.getString("${prefix}entry", default.entryTime)
+                ?: default.entryTime,
+            exitTime = prefs.getString("${prefix}exit", default.exitTime)
+                ?: default.exitTime
+        )
+    }
+
+    private fun clearDemoProfile(
+        editor: android.content.SharedPreferences.Editor,
+        id: Long
+    ): android.content.SharedPreferences.Editor {
+        val prefix = demoProfilePrefix(id)
+        return editor
+            .remove("${prefix}name")
+            .remove("${prefix}type")
+            .remove("${prefix}zone")
+            .remove("${prefix}shift")
+            .remove("${prefix}entry")
+            .remove("${prefix}exit")
+    }
     private fun photoKey(userId: Long) = "profile_$userId"
     private val photoDeletionEpochs = mutableMapOf<Long, Long>()
 
@@ -54,7 +105,7 @@ class AuthRepository @Inject constructor(
         photoDeletionEpochs[userId] = photoDeletionEpoch(userId) + 1L
     }
 
-    /** Carga la foto de perfil guardada (si existe) para el usuario de la sesiÃ³n. */
+    /** Carga la foto de perfil guardada (si existe) para el usuario de la sesión. */
     private fun loadPhoto() {
         val userId = session.current.user?.id ?: return
         val photo = photoStore.fileFor(photoKey(userId))
@@ -135,6 +186,37 @@ class AuthRepository @Inject constructor(
         } catch (e: Exception) {
             return Result.failure(e)
         }
+        if (isKnownDemoAccount(originalId, originalEmail)) {
+            if (session.current.user?.id != originalId ||
+                session.current.user?.email != originalEmail ||
+                isDeleted(originalEmail)
+            ) {
+                return Result.failure(
+                    IllegalStateException("La cuenta DEMO ya no esta disponible.")
+                )
+            }
+
+            val prefix = demoProfilePrefix(originalId)
+            val editor = prefs.edit()
+                .putString("${prefix}name", newName)
+                .putString("${prefix}type", type.name)
+                .putString("${prefix}shift", shift.name)
+                .putString("${prefix}entry", entry)
+                .putString("${prefix}exit", exit)
+
+            if (zone == null) {
+                editor.remove("${prefix}zone")
+            } else {
+                editor.putString("${prefix}zone", zone)
+            }
+
+            if (!editor.commit()) {
+                return Result.failure(
+                    IllegalStateException("No se pudo guardar el perfil DEMO.")
+                )
+            }
+        }
+
         var applied = false
         session.update { current ->
             if (current.user?.id == originalId && current.user?.email == originalEmail) {
@@ -150,18 +232,22 @@ class AuthRepository @Inject constructor(
 
     private fun isDeleted(email: String) = prefs.getBoolean("deleted_$email", false)
 
-    /** Devuelve Result<true> si la cuenta iniciÃ³ sesiÃ³n pero estÃ¡ inhabilitada. */
+    /** Devuelve Result<true> si la cuenta inició sesión pero está inhabilitada. */
     suspend fun login(email: String, password: String): Result<Boolean> {
         delay(500)
         val mail = email.trim().lowercase()
         if ((mail == DemoData.DEMO_EMAIL || mail == DemoData.BLOCKED_EMAIL) && isDeleted(mail)) {
-            return Result.failure(IllegalStateException("Esta cuenta fue eliminada. Pulsa Â«Restaurar cuentas demoÂ» para volver a usarla."))
+            return Result.failure(IllegalStateException("Esta cuenta fue eliminada. Pulsa «Restaurar cuentas demo» para volver a usarla."))
         }
         if (mail == DemoData.DEMO_EMAIL && password == DemoData.DEMO_PASSWORD) {
             session.update {
-                Session(
-                    user = DemoData.demoUser, zone = "Coyote", shift = Shift.MATUTINO,
-                    entryTime = "7:00 AM", exitTime = "2:00 PM", privacyAccepted = true
+                restoredDemoSession(
+                    Session(
+                        user = DemoData.demoUser, zone = "Coyote",
+                        shift = Shift.MATUTINO,
+                        entryTime = "7:00 AM", exitTime = "2:00 PM",
+                        privacyAccepted = true
+                    )
                 )
             }
             session.update { driverLocalStore.restore(it) }
@@ -171,9 +257,14 @@ class AuthRepository @Inject constructor(
         }
         if (mail == DemoData.BLOCKED_EMAIL && password == DemoData.DEMO_PASSWORD) {
             session.update {
-                Session(
-                    user = DemoData.blockedUser, zone = "Tlahuelilpan", privacyAccepted = true,
-                    accountStatus = AccountStatus.DISABLED, disabledReason = "Documento vencido"
+                restoredDemoSession(
+                    Session(
+                        user = DemoData.blockedUser,
+                        zone = "Tlahuelilpan",
+                        privacyAccepted = true,
+                        accountStatus = AccountStatus.DISABLED,
+                        disabledReason = "Documento vencido"
+                    )
                 )
             }
             session.update { driverLocalStore.restore(it) }
@@ -183,7 +274,7 @@ class AuthRepository @Inject constructor(
         }
         val u = userDao.findByEmail(mail)
         if (u == null || u.passwordHash != sha256(password)) {
-            return Result.failure(IllegalArgumentException("Correo o contraseÃ±a incorrectos."))
+            return Result.failure(IllegalArgumentException("Correo o contraseña incorrectos."))
         }
         session.update {
             Session(
@@ -201,7 +292,7 @@ class AuthRepository @Inject constructor(
         delay(400)
         val mail = email.trim().lowercase()
         if (!AppConfig.isInstitutionalEmail(mail)) {
-            return Result.failure(IllegalArgumentException("Usa el correo de tu instituciÃ³n (ej. nombre@uttt.edu.mx)."))
+            return Result.failure(IllegalArgumentException("Usa el correo de tu institución (ej. nombre@uttt.edu.mx)."))
         }
         if (mail == DemoData.DEMO_EMAIL || mail == DemoData.BLOCKED_EMAIL || userDao.findByEmail(mail) != null) {
             return Result.failure(IllegalStateException("Ya existe una cuenta con ese correo."))
@@ -213,7 +304,7 @@ class AuthRepository @Inject constructor(
                 exit = Shift.MATUTINO.exit, privacy = false
             )
         )
-        session.update { Session(user = UserProfile(id, name.trim(), mail, type, AppConfig.institutionFor(mail) ?: "InstituciÃ³n participante")) }
+        session.update { Session(user = UserProfile(id, name.trim(), mail, type, AppConfig.institutionFor(mail) ?: "Institución participante")) }
         return Result.success(Unit)
     }
 
@@ -226,7 +317,7 @@ class AuthRepository @Inject constructor(
     suspend fun deleteAccount() {
         val u = session.current.user ?: return
         db.withTransaction {
-            // Solo registros con ownerUserId explÃ­cito perteneciente al usuario.
+            // Solo registros con ownerUserId explícito perteneciente al usuario.
             bookingDao.activeForOwner(u.id).forEach { b ->
                 routeDao.restoreSeatsForAccountDeletion(b.routeId, b.seats, u.id)
             }
@@ -245,7 +336,18 @@ class AuthRepository @Inject constructor(
         photoStore.blockAccountPhotos(u.id)
         driverRepo.removeUserPhotos(u.id)
         driverLocalStore.clear(u.id)
-        if (u.id <= 0) prefs.edit().putBoolean("deleted_${u.email}", true).apply()
+        if (u.id <= 0) {
+            val editor = prefs.edit()
+                .putBoolean("deleted_${u.email}", true)
+
+            if (isKnownDemoAccount(u.id, u.email)) {
+                clearDemoProfile(editor, u.id)
+            }
+
+            if (!editor.commit()) {
+                error("No se pudo registrar la eliminacion DEMO.")
+            }
+        }
         session.update { Session() }
     }
 
@@ -254,9 +356,14 @@ class AuthRepository @Inject constructor(
         if (!AppConfig.DEMO_MODE) throw IllegalStateException("Solo disponible en DEMO.")
         // No anuncia exito antes de terminar de reponer datos faltantes.
         seeder.reset()
-        val saved = prefs.edit()
+        val editor = prefs.edit()
             .remove("deleted_${DemoData.DEMO_EMAIL}")
-            .remove("deleted_${DemoData.BLOCKED_EMAIL}").commit()
+            .remove("deleted_${DemoData.BLOCKED_EMAIL}")
+
+        clearDemoProfile(editor, DemoData.demoUser.id)
+        clearDemoProfile(editor, DemoData.blockedUser.id)
+
+        val saved = editor.commit()
         if (!saved) throw IllegalStateException("No se pudo restaurar la configuracion DEMO.")
         photoStore.unblockAccountPhotos(DemoData.demoUser.id)
         photoStore.unblockAccountPhotos(DemoData.blockedUser.id)
@@ -298,6 +405,18 @@ class AuthRepository @Inject constructor(
         if (normalized.isBlank()) return
         if (original.id > 0) userDao.get(original.id)?.let {
             userDao.update(it.copy(name = normalized))
+        }
+        if (isKnownDemoAccount(original.id, original.email)) {
+            if (session.current.user?.id != original.id ||
+                session.current.user?.email != original.email ||
+                isDeleted(original.email)
+            ) return
+
+            val saved = prefs.edit()
+                .putString("${demoProfilePrefix(original.id)}name", normalized)
+                .commit()
+
+            if (!saved) error("No se pudo guardar el nombre DEMO.")
         }
         session.update { current ->
             if (current.user?.id == original.id && current.user?.email == original.email)

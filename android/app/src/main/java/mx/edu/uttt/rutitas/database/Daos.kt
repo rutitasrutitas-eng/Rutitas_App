@@ -143,7 +143,7 @@ interface RouteDao {
         UPDATE routes
         SET seats = seats + :quantity
         WHERE id = :routeId
-          AND ownerUserId != :deletedUserId
+          AND (ownerUserId IS NULL OR ownerUserId != :deletedUserId)
           AND status IN ('ACTIVE','IN_PROGRESS')
           AND :quantity > 0
     """)
@@ -193,6 +193,8 @@ interface RequestDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertDemoIfAbsent(r: List<RequestEntity>)
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertAll(r: List<RequestEntity>)
     @Update suspend fun update(r: RequestEntity)
+    @Query("UPDATE requests SET status = 'REJECTED' WHERE id = :id AND status = 'PENDING' AND (ownerUserId = :ownerId OR (ownerUserId IS NULL AND routeId = 0))")
+    suspend fun rejectIfPending(id: Long, ownerId: Long): Int
     @Query("UPDATE requests SET status = 'CANCELLED' WHERE ownerUserId = :ownerId AND status IN ('PENDING','ACCEPTED')")
     suspend fun cancelOpenForOwner(ownerId: Long): Int
 
