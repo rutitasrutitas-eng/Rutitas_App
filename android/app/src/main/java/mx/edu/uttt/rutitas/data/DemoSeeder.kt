@@ -36,26 +36,36 @@ class DemoSeeder @Inject constructor(
 
     fun seedIfNeeded() {
         scope.launch {
-            if (routeDao.count() == 0) insertAll()
-            _ready.value = true
+            try {
+                // IGNORE en las cuatro tablas conserva datos existentes y repone faltantes.
+                if (routeDao.count() == 0) insertAll()
+                _ready.value = true
+            } catch (e: Exception) {
+                _ready.value = false
+                throw e
+            }
         }
     }
 
-    /** Restablece solo el estado DEMO en memoria; no borra datos de otros usuarios. */
-    fun reset() {
-        scope.launch {
+    /** Espera el resultado antes de avisar a la UI; no borra datos de ningun usuario. */
+    suspend fun reset() {
+        kotlinx.coroutines.withContext(Dispatchers.IO) {
             _ready.value = false
-            // Únicamente si la base está vacía se agregan registros de ejemplo.
-            // No se reemplazan registros existentes (incluidos los heredados).
-            if (routeDao.count() == 0) insertAll()
-            session.update {
-                it.copy(
-                    driverStatus = DriverStatus.NONE, vehicle = Vehicle(),
-                    documents = DocKind.entries.associateWith { DocStatus.PENDING },
-                    accountStatus = AccountStatus.ACTIVE, disabledReason = null, reviewRequested = false
-                )
+            try {
+                insertAll()
+                session.update { current ->
+                    if (current.user?.email == DemoData.DEMO_EMAIL)
+                        current.copy(driverStatus = DriverStatus.NONE, vehicle = Vehicle(),
+                            documents = DocKind.entries.associateWith { DocStatus.PENDING },
+                            accountStatus = AccountStatus.ACTIVE, disabledReason = null,
+                            reviewRequested = false)
+                    else current
+                }
+                _ready.value = true
+            } catch (e: Exception) {
+                _ready.value = false
+                throw e
             }
-            _ready.value = true
         }
     }
 

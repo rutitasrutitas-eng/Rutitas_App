@@ -128,7 +128,13 @@ fun ProfileScreen(
                 Text("Opciones demo", style = MaterialTheme.typography.titleMedium)
                 Text("Simula una cuenta inhabilitada:", color = RColors.Muted, style = MaterialTheme.typography.bodySmall)
                 ChipGroup(DemoData.disabledReasons, emptySet()) { reason -> vm.disable(reason); onDisabled() }
-                TextButton(onClick = { vm.resetDemo(); Toast.makeText(context, "Datos demo restablecidos", Toast.LENGTH_SHORT).show() }) {
+                TextButton(onClick = {
+                    vm.resetDemo { result ->
+                        val message = if (result.isSuccess) "Datos demo restablecidos"
+                            else (result.exceptionOrNull()?.message ?: "No se pudieron restaurar datos DEMO")
+                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                    }
+                }) {
                     Text("Restablecer datos demo")
                 }
             }

@@ -220,4 +220,118 @@ class OwnershipHardeningTest {
         assertNotNull(db.requestDao().findByCode("B-REQ"))
         assertEquals("CANCELLED", db.routeDao().get(aRoute)?.status)
     }
+
+    @Test fun deletingDriverCancelsPassengerBookingsAndRequests() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+
+        val driverRoute = db.routeDao().insert(route(101, seats = 3))
+        val otherRoute = db.routeDao().insert(route(102, seats = 3))
+
+        login(201)
+        val passengerBooking = bookings.reserve(
+            driverRoute, "Coyote", 1
+        ).getOrThrow()
+
+        login(202)
+        val otherBooking = bookings.reserve(
+            otherRoute, "Coyote", 1
+        ).getOrThrow()
+
+        db.requestDao().insertAll(
+            listOf(
+                request(101, "DELETE-DRIVER-REQ").copy(
+                    routeId = driverRoute,
+                    status = "PENDING"
+                ),
+                request(102, "OTHER-DRIVER-REQ").copy(
+                    routeId = otherRoute,
+                    status = "PENDING"
+                )
+            )
+        )
+
+        login(101)
+
+        val store = PrivatePhotoStore(context)
+        val seeder = DemoSeeder(
+            db.routeDao(),
+            db.bookingDao(),
+            db.requestDao(),
+            db.reviewDao(),
+            driver,
+            session
+        )
+
+        val auth = AuthRepository(
+            db.userDao(),
+            db.bookingDao(),
+            db.routeDao(),
+            db.requestDao(),
+            db.reviewDao(),
+            store,
+            DriverLocalStore(context),
+            driver,
+            seeder,
+            session,
+            db,
+            context
+        )
+
+        auth.deleteAccount()
+
+        assertEquals("CANCELLED", db.routeDao().get(driverRoute)?.status)
+        assertEquals(
+            "CANCELLED",
+            db.bookingDao().get(passengerBooking)?.status
+        )
+
+        assertEquals(
+            "CANCELLED",
+            db.requestDao().findByCode("DELETE-DRIVER-REQ")?.status
+        )
+
+        assertEquals("ACTIVE", db.routeDao().get(otherRoute)?.status)
+        assertEquals(
+            "CONFIRMED",
+            db.bookingDao().get(otherBooking)?.status
+        )
+
+        assertEquals(
+            "PENDING",
+            db.requestDao().findByCode("OTHER-DRIVER-REQ")?.status
+        )
+
+        assertEquals(2, db.routeDao().get(driverRoute)?.seats)
+        assertEquals(2, db.routeDao().get(otherRoute)?.seats)
+    }
+
+    @Test fun accountDeletionRestoresOnlyOtherDriversActiveSeats() = runBlocking {
+        val activeRoute = db.routeDao().insert(route(102, seats = 2))
+        val cancelledRoute = db.routeDao().insert(
+            route(103, seats = 2).copy(status = "CANCELLED")
+        )
+        val ownRoute = db.routeDao().insert(route(101, seats = 2))
+
+        val activeResult = db.routeDao().restoreSeatsForAccountDeletion(
+            activeRoute, 1, 101
+        )
+        val cancelledResult = db.routeDao().restoreSeatsForAccountDeletion(
+            cancelledRoute, 1, 101
+        )
+        val ownResult = db.routeDao().restoreSeatsForAccountDeletion(
+            ownRoute, 1, 101
+        )
+        val invalidResult = db.routeDao().restoreSeatsForAccountDeletion(
+            activeRoute, 0, 101
+        )
+
+        assertEquals(1, activeResult)
+        assertEquals(0, cancelledResult)
+        assertEquals(0, ownResult)
+        assertEquals(0, invalidResult)
+
+        assertEquals(3, db.routeDao().get(activeRoute)?.seats)
+        assertEquals(2, db.routeDao().get(cancelledRoute)?.seats)
+        assertEquals(2, db.routeDao().get(ownRoute)?.seats)
+    }
 }

@@ -57,4 +57,41 @@ class AccountIsolationTest {
             assertTrue(b.exists())
         } finally { a.delete(); b.delete() }
     }
+
+    @Test
+    fun deletingUserPhotosRemovesAtomicFilesWithoutTouchingAnotherUser() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val dir = File(context.filesDir, "private_photos").apply { mkdirs() }
+        val store = PrivatePhotoStore(context)
+
+        val namesA = listOf(
+            "user_991001_identity.jpg",
+            "user_991001_vehicle.jpg.new",
+            "user_991001_doc_LICENSE.jpg.bak"
+        )
+
+        val namesB = listOf(
+            "user_991002_identity.jpg",
+            "user_991002_vehicle.jpg.new",
+            "user_991002_doc_LICENSE.jpg.bak"
+        )
+
+        val filesA = namesA.map { File(dir, it) }
+        val filesB = namesB.map { File(dir, it) }
+
+        try {
+            (filesA + filesB).forEach { it.writeText("test") }
+
+            store.deleteForUser(991001L)
+
+            filesA.forEach { assertFalse(it.name, it.exists()) }
+            filesB.forEach { assertTrue(it.name, it.exists()) }
+
+            store.deleteForUser(991001L)
+
+            filesB.forEach { assertTrue(it.name, it.exists()) }
+        } finally {
+            (filesA + filesB).forEach { it.delete() }
+        }
+    }
 }
