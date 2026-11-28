@@ -4,7 +4,9 @@ import mx.edu.uttt.rutitas.model.*
 
 fun RouteEntity.toDomain() = Route(
     id, origin, destination, departure, arrival, price, seats, driverName, driverRating, car,
-    stops.split("|"), RouteStatus.valueOf(status), ownedByMe, alternative, tag, days, recurring, waitMinutes, progress, waitStartedAt
+    stops.split("|"), RouteStatus.valueOf(status), ownedByMe, alternative, tag, days, recurring, waitMinutes, progress, waitStartedAt,
+    shift?.let { runCatching { Shift.valueOf(it) }.getOrNull() },
+    direction?.let { runCatching { TripDirection.valueOf(it) }.getOrNull() }
 )
 
 fun BookingEntity.toDomain() = Booking(

@@ -30,6 +30,8 @@ import mx.edu.uttt.rutitas.model.RequestStatus
 import mx.edu.uttt.rutitas.model.RideRequest
 import mx.edu.uttt.rutitas.model.Route
 import mx.edu.uttt.rutitas.model.RouteStatus
+import mx.edu.uttt.rutitas.model.Shift
+import mx.edu.uttt.rutitas.model.TripDirection
 import mx.edu.uttt.rutitas.navigation.Routes
 import mx.edu.uttt.rutitas.ui.components.*
 import mx.edu.uttt.rutitas.ui.theme.RColors
@@ -267,6 +269,7 @@ fun DriverRouteDetailScreen(
     val context = LocalContext.current
     val route by vm.route.collectAsStateWithLifecycle()
     val requests by vm.routeRequests.collectAsStateWithLifecycle()
+    val confirmedBookings by vm.confirmedBookings.collectAsStateWithLifecycle()
     val s by vm.session.collectAsStateWithLifecycle()
     val snack = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -406,7 +409,7 @@ fun DriverRouteDetailScreen(
             }
 
             // ---- Pasajeros aceptados ----
-            Text("Pasajeros (${accepted.size})", style = MaterialTheme.typography.titleMedium)
+            Text("Solicitudes aceptadas (${accepted.size})", style = MaterialTheme.typography.titleMedium)
             if (accepted.isEmpty()) Text("Aún no has aceptado pasajeros en esta ruta.", color = RColors.Muted)
             accepted.forEach { q ->
                 InfoCard {
@@ -431,6 +434,39 @@ fun DriverRouteDetailScreen(
                 }
             }
 
+            // ---- Reservas directas confirmadas ----
+            Text(
+                "Reservas confirmadas (${confirmedBookings.size})",
+                style = MaterialTheme.typography.titleMedium
+            )
+
+            if (confirmedBookings.isEmpty()) {
+                Text(
+                    "No hay reservas directas confirmadas en esta ruta.",
+                    color = RColors.Muted
+                )
+            }
+
+            confirmedBookings.forEach { booking ->
+                InfoCard {
+                    Text(
+                        "Reserva #${booking.id}",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        "Punto: ${booking.pickup}",
+                        color = RColors.Muted
+                    )
+                    Text(
+                        "Lugares reservados: ${booking.seats}",
+                        color = RColors.Muted
+                    )
+                    Text(
+                        "Estado: Confirmada",
+                        color = RColors.Blue
+                    )
+                }
+            }
             // ---- Solicitudes pendientes ----
             if (live) {
                 Text("Solicitudes por aceptar (${pending.size})", style = MaterialTheme.typography.titleMedium)
@@ -543,6 +579,8 @@ fun PublishRouteScreen(onBack: () -> Unit, onDone: () -> Unit, onDisabled: () ->
     var origin by rememberSaveable { mutableStateOf("Coyote") }
     var destination by rememberSaveable { mutableStateOf("UTTT") }
     var time by rememberSaveable { mutableStateOf("6:20 AM") }
+    var shiftName by rememberSaveable { mutableStateOf<String?>(null) }
+    var directionName by rememberSaveable { mutableStateOf<String?>(null) }
     var seats by rememberSaveable { mutableIntStateOf(2) }
     var price by rememberSaveable { mutableStateOf("20") }
     var days by rememberSaveable { mutableStateOf(setOf("Lun", "Mar", "Mié", "Jue", "Vie")) }
@@ -561,6 +599,8 @@ fun PublishRouteScreen(onBack: () -> Unit, onDone: () -> Unit, onDisabled: () ->
             origin = r.origin; destination = r.destination; time = r.departure; seats = r.seats
             price = r.price.toString(); days = r.days.split(",").map { it.trim() }.toSet()
             recurring = r.recurring; wait = r.waitMinutes
+            shiftName = r.shift?.name
+            directionName = r.direction?.name
             extraPoints = r.stops.drop(1).dropLast(1).toSet(); loaded = true
         }
     }
@@ -597,6 +637,37 @@ fun PublishRouteScreen(onBack: () -> Unit, onDone: () -> Unit, onDisabled: () ->
             ChipGroup(pointOptions, extraPoints) { p -> extraPoints = if (p in extraPoints) extraPoints - p else extraPoints + p }
             if (origin != destination) MeetingPointsSection(route = preview, selected = null)
             TimeField(time, { time = it }, "Hora de salida", error = if (tried && !TimeUtils.isValid(time)) "Elige una hora" else null)
+            Text("Turno del viaje", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Selecciona el turno que corresponde a este recorrido.",
+                color = RColors.Muted,
+                style = MaterialTheme.typography.bodySmall
+            )
+            ChipGroup(
+                Shift.entries.map { it.label },
+                Shift.entries.filter { it.name == shiftName }.map { it.label }.toSet()
+            ) { label ->
+                shiftName = Shift.entries.first { it.label == label }.name
+            }
+            if (tried && shiftName == null) {
+                Text("Selecciona el turno del viaje", color = MaterialTheme.colorScheme.error)
+            }
+
+            Text("Tipo de viaje", style = MaterialTheme.typography.titleMedium)
+            ChipGroup(
+                TripDirection.entries.map { it.label },
+                TripDirection.entries.filter { it.name == directionName }.map { it.label }.toSet()
+            ) { label ->
+                directionName = TripDirection.entries.first { it.label == label }.name
+            }
+            if (tried && directionName == null) {
+                Text("Selecciona Entrada o Salida", color = MaterialTheme.colorScheme.error)
+            }
+            Text(
+                "El turno y el tipo de viaje los define el conductor.",
+                color = RColors.Muted,
+                style = MaterialTheme.typography.bodySmall
+            )
             Text("Tiempo de espera", style = MaterialTheme.typography.titleMedium)
             Text("Cuánto esperará el conductor a cada pasajero en el punto de encuentro.", color = RColors.Muted, style = MaterialTheme.typography.bodySmall)
             ChipGroup(listOf("5 min", "10 min", "15 min", "20 min"), setOf("$wait min")) { wait = it.substringBefore(" ").toInt() }
@@ -623,10 +694,14 @@ fun PublishRouteScreen(onBack: () -> Unit, onDone: () -> Unit, onDisabled: () ->
                 tried = true; error = null
                 when {
                     origin == destination -> error = "El origen y el destino no pueden ser iguales."
+                    shiftName == null -> error = "Selecciona el turno del viaje."
+                    directionName == null -> error = "Selecciona Entrada o Salida."
                     !TimeUtils.isValid(time) || priceNum == null || priceNum <= 0 || days.isEmpty() -> Unit
-                    else -> vm.save(
+                    else -> vm.saveClassified(
                         origin, destination, time, seats, priceNum,
                         allDays.filter { it in days }.joinToString(", "), recurring, wait, computedStops,
+                        shift = Shift.valueOf(shiftName.orEmpty()),
+                        direction = TripDirection.valueOf(directionName.orEmpty()),
                         onDone = {
                             Toast.makeText(context, if (editing) "Ruta actualizada" else "Ruta publicada", Toast.LENGTH_SHORT).show()
                             onDone()

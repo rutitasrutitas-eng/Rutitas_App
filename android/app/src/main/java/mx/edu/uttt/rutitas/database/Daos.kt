@@ -137,6 +137,94 @@ interface RouteDao {
         departure: String, arrival: String, seats: Int, price: Int,
         days: String, recurring: Boolean, waitMinutes: Int, stops: String
     ): Int
+    /**
+     * ANDROID-005: cambia la clasificacion solo para el propietario.
+     * Rechaza modificaciones si existen reservas activas o
+     * solicitudes aceptadas asociadas a la ruta.
+     *
+     * Retorna 1 si se actualizo; 0 si alguna condicion no se cumple.
+     */
+    @Query("""
+        UPDATE routes
+        SET shift = :shift, direction = :direction
+        WHERE id = :id
+          AND ownerUserId = :ownerId
+          AND status IN ('ACTIVE', 'INTERRUPTED')
+          AND :shift IN ('MATUTINO', 'VESPERTINO', 'MIXTO')
+          AND :direction IN ('ENTRADA', 'SALIDA')
+          AND NOT EXISTS (
+              SELECT 1 FROM bookings b
+              WHERE b.routeId = :id
+                AND b.status IN ('CONFIRMED', 'PENDING')
+          )
+          AND NOT EXISTS (
+              SELECT 1 FROM requests q
+              WHERE q.routeId = :id
+                AND q.status = 'ACCEPTED'
+          )
+    """)
+    suspend fun updateClassificationIfSafe(
+        id: Long,
+        ownerId: Long,
+        shift: String,
+        direction: String
+    ): Int
+    /**
+     * ANDROID-005: actualiza detalles y clasificacion en una
+     * sola sentencia SQLite. Rechaza rutas ajenas, estados
+     * incompatibles y viajes con reservas o solicitudes activas.
+     *
+     * Retorna 1 si se actualiza y 0 si se rechaza.
+     */
+    @Query("""
+        UPDATE routes
+        SET origin = :origin,
+            destination = :destination,
+            departure = :departure,
+            arrival = :arrival,
+            seats = :seats,
+            price = :price,
+            days = :days,
+            recurring = :recurring,
+            waitMinutes = :waitMinutes,
+            stops = :stops,
+            shift = :shift,
+            direction = :direction
+        WHERE id = :id
+          AND ownerUserId = :ownerId
+          AND status IN ('ACTIVE', 'INTERRUPTED')
+          AND :seats >= 0
+          AND :price > 0
+          AND :origin != :destination
+          AND :shift IN ('MATUTINO', 'VESPERTINO', 'MIXTO')
+          AND :direction IN ('ENTRADA', 'SALIDA')
+          AND NOT EXISTS (
+              SELECT 1 FROM bookings b
+              WHERE b.routeId = :id
+                AND b.status IN ('CONFIRMED', 'PENDING')
+          )
+          AND NOT EXISTS (
+              SELECT 1 FROM requests q
+              WHERE q.routeId = :id
+                AND q.status = 'ACCEPTED'
+          )
+    """)
+    suspend fun updateRouteWithClassificationIfSafe(
+        id: Long,
+        ownerId: Long,
+        origin: String,
+        destination: String,
+        departure: String,
+        arrival: String,
+        seats: Int,
+        price: Int,
+        days: String,
+        recurring: Boolean,
+        waitMinutes: Int,
+        stops: String,
+        shift: String,
+        direction: String
+    ): Int
     @Query("UPDATE routes SET seats = seats + :quantity WHERE id = :id")
     suspend fun restoreSeats(id: Long, quantity: Int): Int
     @Query("""

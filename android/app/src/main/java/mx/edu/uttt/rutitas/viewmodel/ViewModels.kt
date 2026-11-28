@@ -80,7 +80,7 @@ class AuthViewModel @Inject constructor(
             _ui.value = AuthUiState(loading = true)
 
             if (mx.edu.uttt.rutitas.utils.AppConfig.DEMO_MODE) {
-                auth.register(name, email, pass, type)
+                auth.register(name, email, pass, UserType.ALUMNO)
                     .onSuccess {
                         _ui.value = AuthUiState()
                         onDone()
@@ -170,12 +170,12 @@ class BookingViewModel @Inject constructor(
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
 
     fun reserve(
-        pickup: String, seats: Int, shift: Shift, direction: TripDirection,
+        pickup: String, seats: Int,
         onDone: (Long) -> Unit, onError: (String) -> Unit
     ) {
         viewModelScope.launch {
             _loading.value = true
-            bookingRepo.reserve(routeId, pickup, seats, shift, direction)
+            bookingRepo.reserve(routeId, pickup, seats)
                 .onSuccess { _loading.value = false; onDone(it) }
                 .onFailure { _loading.value = false; onError(it.message ?: "No se pudo reservar.") }
         }
@@ -314,6 +314,7 @@ class DriverViewModel @Inject constructor(
     handle: SavedStateHandle,
     private val routeRepo: RouteRepository,
     private val repo: DriverRepository,
+    private val bookingRepo: mx.edu.uttt.rutitas.repository.BookingRepository,
     private val reviewRepo: ReviewRepository,
     sessionManager: SessionManager
 ) : ViewModel() {
@@ -328,6 +329,9 @@ class DriverViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
     val requests: StateFlow<List<RideRequest>> = repo.requests
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val confirmedBookings: StateFlow<List<mx.edu.uttt.rutitas.model.Booking>> =
+        bookingRepo.confirmedForDriverRoute(routeId)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     /** Solicitudes de la ruta abierta: las aceptadas en ella y las pendientes por atender. */
     val routeRequests: StateFlow<List<RideRequest>> = repo.requests
         .map { l -> l.filter { it.routeId == routeId || (it.routeId == 0L && it.status == RequestStatus.PENDING) } }
@@ -371,22 +375,77 @@ class DriverViewModel @Inject constructor(
         viewModelScope.launch { onResult(repo.validateCode(routeId, code)) }
     }
 
-    /** Publica una ruta nueva o, si se abrió en modo edición, guarda los cambios. */
-    fun save(
-        origin: String, destination: String, time: String, seats: Int, price: Int, days: String,
-        recurring: Boolean, waitMinutes: Int, stops: List<String>?, onDone: () -> Unit, onError: (String) -> Unit
+    /**
+     * ANDROID-005: flujo clasificado para publicar o editar.
+     * El turno y la direccion provienen del conductor.
+     * El repositorio vuelve a validar sesion y propiedad.
+     */
+    fun saveClassified(
+        origin: String,
+        destination: String,
+        time: String,
+        seats: Int,
+        price: Int,
+        days: String,
+        recurring: Boolean,
+        waitMinutes: Int,
+        stops: List<String>?,
+        shift: Shift,
+        direction: TripDirection,
+        onDone: () -> Unit,
+        onError: (String) -> Unit
     ) {
+        if (_loading.value) return
+
         viewModelScope.launch {
             _loading.value = true
-            val result = if (editing) {
-                routeRepo.update(routeId, origin, destination, time, seats, price, days, recurring, waitMinutes, stops)
-            } else {
-                routeRepo.publish(origin, destination, time, seats, price, days, recurring, waitMinutes, stops).map { }
+
+            try {
+                val result = if (editing) {
+                    routeRepo.updateClassified(
+                        id = routeId,
+                        origin = origin,
+                        destination = destination,
+                        departure = time,
+                        seats = seats,
+                        price = price,
+                        days = days,
+                        recurring = recurring,
+                        waitMinutes = waitMinutes,
+                        shift = shift,
+                        direction = direction,
+                        stops = stops
+                    )
+                } else {
+                    routeRepo.publishClassified(
+                        origin = origin,
+                        destination = destination,
+                        departure = time,
+                        seats = seats,
+                        price = price,
+                        days = days,
+                        recurring = recurring,
+                        waitMinutes = waitMinutes,
+                        shift = shift,
+                        direction = direction,
+                        stops = stops
+                    ).map { }
+                }
+
+                result
+                    .onSuccess { onDone() }
+                    .onFailure {
+                        onError(it.message ?: "No se pudo guardar la ruta.")
+                    }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                onError(e.message ?: "No se pudo guardar la ruta.")
+            } finally {
+                _loading.value = false
             }
-            _loading.value = false
-            result.onSuccess { onDone() }.onFailure { onError(it.message ?: "No se pudo guardar la ruta.") }
         }
     }
+    /** Publica una ruta nueva o, si se abrió en modo edición, guarda los cambios. */
 }
 
 @HiltViewModel

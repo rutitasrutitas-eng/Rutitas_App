@@ -13,6 +13,7 @@ import mx.edu.uttt.rutitas.database.RouteDao
 import mx.edu.uttt.rutitas.database.toDomain
 import mx.edu.uttt.rutitas.model.Booking
 import mx.edu.uttt.rutitas.model.BookingStatus
+import mx.edu.uttt.rutitas.model.DriverStatus
 import mx.edu.uttt.rutitas.model.RouteStatus
 import mx.edu.uttt.rutitas.model.Shift
 import mx.edu.uttt.rutitas.model.TripDirection
@@ -33,6 +34,29 @@ class BookingRepository @Inject constructor(
         rows.filter { visible(it, s.user?.id) }.map { it.toDomain() }
     }
 
+    /**
+     * Reservas confirmadas de una ruta propia.
+     * Se valida propiedad y autorizacion en el repositorio,
+     * no solamente en la interfaz.
+     */
+    fun confirmedForDriverRoute(routeId: Long): Flow<List<Booking>> =
+        combine(dao.observeAll(), routeDao.observe(routeId), session.state) { rows, route, s ->
+            val userId = s.user?.id
+
+            if (userId == null ||
+                s.isDisabled ||
+                s.driverStatus != DriverStatus.APPROVED ||
+                route == null ||
+                route.ownerUserId != userId
+            ) {
+                emptyList()
+            } else {
+                rows.filter {
+                    it.routeId == routeId &&
+                        it.status == BookingStatus.CONFIRMED.name
+                }.map { it.toDomain() }
+            }
+        }
     /** Reservas activas cuya ruta fue interrumpida (notificación simulada al pasajero). */
     val interrupted: Flow<List<Booking>> = combine(bookings, routeDao.observeAll()) { bs, rs ->
         val broken = rs.filter { it.status == RouteStatus.INTERRUPTED.name }.map { it.id }.toSet()
@@ -56,15 +80,34 @@ class BookingRepository @Inject constructor(
         if (pickup.isBlank()) return fail("Selecciona un punto de encuentro.")
         return try {
             db.withTransaction {
-                if (session.current.user?.id != owner) return@withTransaction fail("La sesión cambió. Intenta de nuevo.")
+                if (session.current.user?.id != owner || session.current.isDisabled) return@withTransaction fail("La sesión cambió o la cuenta está inhabilitada.")
                 val route = routeDao.get(routeId) ?: return@withTransaction fail("No encontramos la ruta.")
                 if (route.status != RouteStatus.ACTIVE.name)
                     return@withTransaction fail("Esta ruta no admite reservas nuevas.")
+                val routeShift = route.shift
+                    ?.let { runCatching { Shift.valueOf(it) }.getOrNull() }
+                    ?: return@withTransaction fail(
+                        "El conductor debe completar el turno de esta ruta."
+                    )
+
+                val routeDirection = route.direction
+                    ?.let { runCatching { TripDirection.valueOf(it) }.getOrNull() }
+                    ?: return@withTransaction fail(
+                        "El conductor debe completar el tipo de viaje."
+                    )
+
+                val validStops = route.stops.split("|").map { it.trim() }
+                if (pickup.trim() !in validStops) {
+                    return@withTransaction fail(
+                        "Selecciona un punto de encuentro de la ruta."
+                    )
+                }
+
                 if (seats > route.seats)
                     return@withTransaction fail("Solo quedan ${route.seats} lugares.")
                 if (routeDao.decrementSeatsIfAvailable(route.id, seats) != 1)
                     return@withTransaction fail("No hay suficientes asientos disponibles.")
-                if (session.current.user?.id != owner) error("La sesión cambió durante la reserva.")
+                if (session.current.user?.id != owner || session.current.isDisabled) error("La sesión cambió o la cuenta está inhabilitada durante la reserva.")
                 val id = dao.insert(
                     BookingEntity(
                         code = "RT-${UUID.randomUUID()}".uppercase(), routeId = route.id,
@@ -72,8 +115,8 @@ class BookingRepository @Inject constructor(
                         departure = route.departure, pickup = pickup, driverName = route.driverName,
                         car = route.car, seats = seats, total = route.price * seats,
                         status = BookingStatus.CONFIRMED.name, progress = 0, rated = false,
-                        seeded = false, dateLabel = "Hoy", shift = shift.name,
-                        direction = direction.name, ownerUserId = owner
+                        seeded = false, dateLabel = "Hoy", shift = routeShift.name,
+                        direction = routeDirection.name, ownerUserId = owner
                     )
                 )
                 Result.success(id)

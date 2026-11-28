@@ -62,63 +62,221 @@ class RouteRepository @Inject constructor(
         runCatching { api.routes() }.onSuccess { dtos -> dao.insertAll(dtos.map { it.toEntity() }) }
     }
 
-    suspend fun publish(
-        origin: String, destination: String, departure: String, seats: Int, price: Int,
-        days: String, recurring: Boolean, waitMinutes: Int = 5, stops: List<String>? = null
-    ): Result<Long> {
-        val s = session.current
-        if (s.isDisabled) return Result.failure(IllegalStateException("Tu cuenta está inhabilitada. No puedes publicar rutas."))
-        if (s.user == null) return Result.failure(IllegalStateException("Inicia sesión para publicar."))
-        val dep = TimeUtils.toMinutes(departure) ?: return Result.failure(IllegalArgumentException("Hora inválida"))
-        delay(400)
-        if (session.current.user?.id != s.user.id) return Result.failure(IllegalStateException("La sesión cambió."))
-        val id = dao.insert(
-            RouteEntity(
-                origin = origin, destination = destination, departure = TimeUtils.format(dep),
-                arrival = TimeUtils.format(dep + 30), price = price, seats = seats,
-                driverName = s.user.name, driverRating = 4.8,
-                car = s.vehicle.description.ifBlank { "Mi auto" },
-                stops = (stops ?: defaultStops(origin, destination)).joinToString("|"),
-                status = RouteStatus.ACTIVE.name, ownedByMe = true, alternative = false, tag = null,
-                days = days, recurring = recurring, waitMinutes = waitMinutes, ownerUserId = s.user.id
-            )
-        )
-        return Result.success(id)
-    }
 
     /** Cambia detalles sin sobrescribir las plazas disminuidas por otras operaciones. */
-    suspend fun update(
-        id: Long, origin: String, destination: String, departure: String, seats: Int, price: Int,
-        days: String, recurring: Boolean, waitMinutes: Int, stops: List<String>? = null
+
+    /**
+     * ANDROID-005: edicion con turno y tipo definidos por el
+     * conductor propietario. Guarda todos los campos mediante
+     * una unica sentencia SQL protegida.
+     *
+     * Metodo candidato: se conectara al formulario cuando
+     * finalicen las pruebas y se elimine el camino anterior.
+     */
+    /**
+     * ANDROID-005: publica una ruta con clasificacion explicita.
+     * El turno, la direccion y el horario son conceptos separados.
+     * Este metodo se conectara posteriormente al formulario.
+     */
+    suspend fun publishClassified(
+        origin: String,
+        destination: String,
+        departure: String,
+        seats: Int,
+        price: Int,
+        days: String,
+        recurring: Boolean,
+        waitMinutes: Int,
+        shift: Shift,
+        direction: TripDirection,
+        stops: List<String>? = null
+    ): Result<Long> {
+        val snapshot = session.current
+
+        val user = snapshot.user
+            ?: return Result.failure(
+                IllegalStateException("Inicia sesion para publicar.")
+            )
+
+        if (snapshot.isDisabled ||
+            snapshot.driverStatus != DriverStatus.APPROVED
+        ) {
+            return Result.failure(
+                IllegalStateException("Necesitas aprobacion como conductor.")
+            )
+        }
+
+        if (origin.isBlank() ||
+            destination.isBlank() ||
+            origin.trim().equals(destination.trim(), ignoreCase = true) ||
+            seats <= 0 ||
+            price <= 0 ||
+            days.isBlank() ||
+            waitMinutes < 0
+        ) {
+            return Result.failure(
+                IllegalArgumentException("Datos de ruta invalidos.")
+            )
+        }
+
+        val dep = TimeUtils.toMinutes(departure)
+            ?: return Result.failure(
+                IllegalArgumentException("Hora invalida.")
+            )
+
+        delay(400)
+
+        if (session.current.user?.id != user.id ||
+            session.current.isDisabled ||
+            session.current.driverStatus != DriverStatus.APPROVED
+        ) {
+            return Result.failure(
+                IllegalStateException("La autorizacion cambio.")
+            )
+        }
+
+        val route = RouteEntity(
+            origin = origin.trim(),
+            destination = destination.trim(),
+            departure = TimeUtils.format(dep),
+            arrival = TimeUtils.format(dep + 30),
+            seats = seats,
+            price = price,
+            driverName = user.name,
+            driverRating = 4.8,
+            car = snapshot.vehicle.description.ifBlank { "Mi auto" },
+            stops = (
+                stops ?: defaultStops(origin.trim(), destination.trim())
+            ).joinToString("|"),
+            status = RouteStatus.ACTIVE.name,
+            ownedByMe = true,
+            alternative = false,
+            tag = null,
+            days = days,
+            recurring = recurring,
+            waitMinutes = waitMinutes,
+            ownerUserId = user.id,
+            shift = shift.name,
+            direction = direction.name
+        )
+
+        val id = dao.insert(route)
+        return Result.success(id)
+    }
+    suspend fun updateClassified(
+        id: Long,
+        origin: String,
+        destination: String,
+        departure: String,
+        seats: Int,
+        price: Int,
+        days: String,
+        recurring: Boolean,
+        waitMinutes: Int,
+        shift: Shift,
+        direction: TripDirection,
+        stops: List<String>? = null
     ): Result<Unit> {
         val snapshot = session.current
+
         val owner = snapshot.user?.id
-            ?: return Result.failure(IllegalStateException("Inicia sesion para editar."))
-        if (snapshot.isDisabled) return Result.failure(IllegalStateException("Cuenta inhabilitada."))
-        if (seats < 0) return Result.failure(IllegalArgumentException("Los asientos no pueden ser negativos."))
+            ?: return Result.failure(
+                IllegalStateException("Inicia sesion para editar.")
+            )
+
+        if (snapshot.isDisabled ||
+            snapshot.driverStatus != DriverStatus.APPROVED
+        ) {
+            return Result.failure(
+                IllegalStateException("Necesitas autorizacion como conductor.")
+            )
+        }
+
+        if (seats < 0 || price <= 0 ||
+            origin.isBlank() || destination.isBlank() ||
+            origin.trim().equals(destination.trim(), ignoreCase = true)
+        ) {
+            return Result.failure(
+                IllegalArgumentException("Datos de ruta invalidos.")
+            )
+        }
+
         val current = dao.get(id)
-            ?: return Result.failure(IllegalStateException("No encontramos la ruta."))
-        if (!ownedBy(current, owner)) return Result.failure(IllegalStateException("Esta ruta no es tuya."))
-        if (current.status !in listOf(RouteStatus.ACTIVE.name, RouteStatus.INTERRUPTED.name))
-            return Result.failure(IllegalStateException("Esta ruta ya no admite edicion."))
+            ?: return Result.failure(
+                IllegalStateException("No encontramos la ruta.")
+            )
+
+        if (!ownedBy(current, owner)) {
+            return Result.failure(
+                IllegalStateException("Esta ruta no es tuya.")
+            )
+        }
+
+        if (current.status !in listOf(
+                RouteStatus.ACTIVE.name,
+                RouteStatus.INTERRUPTED.name
+            )
+        ) {
+            return Result.failure(
+                IllegalStateException("Esta ruta no admite edicion.")
+            )
+        }
+
         val dep = TimeUtils.toMinutes(departure)
-            ?: return Result.failure(IllegalArgumentException("Hora invalida."))
+            ?: return Result.failure(
+                IllegalArgumentException("Hora invalida.")
+            )
+
+        val newStops = (
+            stops ?: if (
+                origin == current.origin &&
+                destination == current.destination
+            ) {
+                current.stops.split("|")
+            } else {
+                defaultStops(origin, destination)
+            }
+        ).joinToString("|")
+
         delay(300)
-        if (session.current.user?.id != owner || session.current.isDisabled)
-            return Result.failure(IllegalStateException("La sesion cambio durante la edicion."))
-        val newStops = (stops ?: if (origin == current.origin && destination == current.destination)
-            current.stops.split("|") else defaultStops(origin, destination)).joinToString("|")
-        val changed = dao.updateDetailsIfSafe(
-            id, owner, origin, destination, TimeUtils.format(dep), TimeUtils.format(dep + 30),
-            seats, price, days, recurring, waitMinutes, newStops
+
+        if (session.current.user?.id != owner ||
+            session.current.isDisabled ||
+            session.current.driverStatus != DriverStatus.APPROVED
+        ) {
+            return Result.failure(
+                IllegalStateException("La autorizacion cambio.")
+            )
+        }
+
+        val changed = dao.updateRouteWithClassificationIfSafe(
+            id = id,
+            ownerId = owner,
+            origin = origin,
+            destination = destination,
+            departure = TimeUtils.format(dep),
+            arrival = TimeUtils.format(dep + 30),
+            seats = seats,
+            price = price,
+            days = days,
+            recurring = recurring,
+            waitMinutes = waitMinutes,
+            stops = newStops,
+            shift = shift.name,
+            direction = direction.name
         )
-        if (changed != 1)
-            return Result.failure(IllegalStateException(
-                "La ruta o sus asientos cambiaron. Actualiza los datos antes de guardar."
-            ))
+
+        if (changed != 1) {
+            return Result.failure(
+                IllegalStateException(
+                    "La ruta tiene reservas, cambio de estado " +
+                    "o no admite esta modificacion."
+                )
+            )
+        }
+
         return Result.success(Unit)
     }
-
     private fun defaultStops(origin: String, destination: String): List<String> =
         listOf(if (origin.endsWith("Centro")) origin else "$origin Centro", destination)
 

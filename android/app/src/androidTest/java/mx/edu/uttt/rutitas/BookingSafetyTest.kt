@@ -39,7 +39,8 @@ class BookingSafetyTest {
         origin = "UTTT", destination = "Tula", departure = "8:00 AM", arrival = "8:30 AM",
         price = 20, seats = 1, driverName = "Conductor", driverRating = 5.0, car = "Auto",
         stops = "UTTT|Tula", status = "ACTIVE", ownedByMe = false, alternative = false,
-        tag = null, days = "Lun", recurring = false
+        tag = null, days = "Lun", recurring = false,
+        shift = "MATUTINO", direction = "ENTRADA"
     )
 
     @Test fun competingForLastSeatOnlyOneSucceeds() = runBlocking {
