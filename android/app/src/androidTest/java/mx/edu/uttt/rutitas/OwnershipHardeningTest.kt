@@ -39,7 +39,8 @@ class OwnershipHardeningTest {
         origin = "Coyote", destination = "UTTT", departure = "7:00 AM", arrival = "7:30 AM",
         price = 20, seats = seats, driverName = "User$owner", driverRating = 5.0,
         car = "Auto", stops = "Coyote|UTTT", status = "ACTIVE", ownedByMe = true,
-        alternative = false, tag = null, days = "Lun", recurring = false, ownerUserId = owner
+        alternative = false, tag = null, days = "Lun", recurring = false, ownerUserId = owner,
+        shift = "MATUTINO", direction = "ENTRADA"
     )
 
     private fun request(owner: Long, code: String = "REQ-1") = RequestEntity(
@@ -79,7 +80,21 @@ class OwnershipHardeningTest {
         val routeId = db.routeDao().insert(route(101))
         val bookingId = bookings.reserve(routeId, "Coyote", 1).getOrThrow()
         login(102)
-        assertTrue(routes.update(routeId, "Otro", "UTTT", "8:00 AM", 9, 10, "Mar", false, 5).isFailure)
+        assertTrue(
+            routes.updateClassified(
+                id = routeId,
+                origin = "Otro",
+                destination = "UTTT",
+                departure = "8:00 AM",
+                seats = 9,
+                price = 10,
+                days = "Mar",
+                recurring = false,
+                waitMinutes = 5,
+                shift = Shift.VESPERTINO,
+                direction = TripDirection.SALIDA
+            ).isFailure
+        )
         routes.setStatus(routeId, RouteStatus.CANCELLED)
         assertNotNull(driver.startRoute(routeId))
         driver.advanceRoute(routeId, 4)

@@ -132,7 +132,10 @@ fun AppNavHost() {
                 onBack = back,
                 onSuccess = {
                     if (mx.edu.uttt.rutitas.utils.AppConfig.DEMO_MODE) {
-                        nav.navigate(Routes.LOCATION)
+                        nav.navigate(Routes.LOCATION) {
+                            popUpTo(Routes.LOGIN) { inclusive = true }
+                            launchSingleTop = true
+                        }
                     } else {
                         nav.navigate(Routes.LOGIN) {
                             popUpTo(Routes.REGISTER) { inclusive = true }

@@ -54,3 +54,15 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
         db.execSQL("ALTER TABLE bookings ADD COLUMN boardingValidated INTEGER NOT NULL DEFAULT 0")
     }
 }
+
+/**
+ * ANDROID-005: Room 5 -> 6.
+ * Conserva rutas, usuarios, reservas y solicitudes.
+ * Las rutas historicas permanecen sin clasificacion verificada.
+ */
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE routes ADD COLUMN shift TEXT")
+        db.execSQL("ALTER TABLE routes ADD COLUMN direction TEXT")
+    }
+}

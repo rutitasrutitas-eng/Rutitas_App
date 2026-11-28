@@ -155,6 +155,11 @@ class AuthRepository @Inject constructor(
             ?: return Result.failure(IllegalStateException("Inicia sesion primero."))
         val originalId = original.id
         val originalEmail = original.email
+        if (AppConfig.DEMO_MODE && type != original.type) {
+            return Result.failure(
+                IllegalStateException("El tipo de usuario no se puede modificar en DEMO.")
+            )
+        }
         val newName = name.trim()
         val mail = email.trim().lowercase()
         if (newName.isBlank()) return Result.failure(IllegalArgumentException("El nombre no puede estar vacio."))
@@ -299,12 +304,12 @@ class AuthRepository @Inject constructor(
         }
         val id = userDao.insert(
             UserEntity(
-                name = name.trim(), email = mail, passwordHash = sha256(password), type = type.name,
+                name = name.trim(), email = mail, passwordHash = sha256(password), type = UserType.ALUMNO.name,
                 zone = null, shift = Shift.MATUTINO.name, entry = Shift.MATUTINO.entry,
                 exit = Shift.MATUTINO.exit, privacy = false
             )
         )
-        session.update { Session(user = UserProfile(id, name.trim(), mail, type, AppConfig.institutionFor(mail) ?: "Institución participante")) }
+        session.update { Session(user = UserProfile(id, name.trim(), mail, UserType.ALUMNO, AppConfig.institutionFor(mail) ?: "Institución participante")) }
         return Result.success(Unit)
     }
 

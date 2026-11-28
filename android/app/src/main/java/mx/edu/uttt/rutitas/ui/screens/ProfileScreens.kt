@@ -208,8 +208,15 @@ fun EditProfileScreen(onBack: () -> Unit, vm: ProfileViewModel = hiltViewModel()
             RutitasField(email, { email = it; error = null }, "Correo institucional", keyboardType = KeyboardType.Email, enabled = !isDemo)
             if (isDemo) Text("El correo de las cuentas demo no se puede cambiar.", color = RColors.Muted, style = MaterialTheme.typography.bodySmall)
             Text("Tipo de usuario", style = MaterialTheme.typography.titleMedium)
-            ChipGroup(UserType.entries.map { it.label }, setOf(UserType.valueOf(type).label)) { label ->
-                type = UserType.entries.first { it.label == label }.name
+            if (mx.edu.uttt.rutitas.utils.AppConfig.DEMO_MODE) {
+                Text(
+                    "Tipo: ${user?.type?.label ?: "Alumno"} (no editable)",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            } else {
+                ChipGroup(UserType.entries.map { it.label }, setOf(UserType.valueOf(type).label)) { label ->
+                    type = UserType.entries.first { it.label == label }.name
+                }
             }
             Text("Zona", style = MaterialTheme.typography.titleMedium)
             ChipGroup(DemoData.zones, setOfNotNull(zone)) { zone = it }

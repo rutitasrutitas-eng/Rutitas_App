@@ -26,7 +26,9 @@ data class RouteEntity(
     val waitMinutes: Int = 5,
     val progress: Int = 0,
     val waitStartedAt: Long = 0L,
-    val ownerUserId: Long? = null // null = legado/DEMO sin propietario verificable
+    val ownerUserId: Long? = null, // null = legado/DEMO sin propietario verificable
+    val shift: String? = null,
+    val direction: String? = null
 )
 
 @Entity(tableName = "bookings")

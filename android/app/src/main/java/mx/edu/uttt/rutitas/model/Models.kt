@@ -101,10 +101,16 @@ data class Route(
     val recurring: Boolean,
     val waitMinutes: Int = 5,
     val progress: Int = 0,
-    val waitStartedAt: Long = 0L
+    val waitStartedAt: Long = 0L,
+    val shift: Shift? = null,
+    val direction: TripDirection? = null
 ) {
     val title: String get() = "$origin → $destination"
-    val isBookable: Boolean get() = status == RouteStatus.ACTIVE && seats > 0
+    val isBookable: Boolean get() =
+        status == RouteStatus.ACTIVE &&
+        seats > 0 &&
+        shift != null &&
+        direction != null
     val isEditable: Boolean get() = status == RouteStatus.ACTIVE || status == RouteStatus.INTERRUPTED
     val isOpen: Boolean get() = status == RouteStatus.ACTIVE || status == RouteStatus.IN_PROGRESS || status == RouteStatus.INTERRUPTED
 

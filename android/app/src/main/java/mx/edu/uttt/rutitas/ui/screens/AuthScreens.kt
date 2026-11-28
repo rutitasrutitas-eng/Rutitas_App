@@ -90,7 +90,6 @@ fun RegisterScreen(onBack: () -> Unit, onSuccess: () -> Unit, vm: AuthViewModel 
     var email by rememberSaveable { mutableStateOf("") }
     var pass by rememberSaveable { mutableStateOf("") }
     var confirm by rememberSaveable { mutableStateOf("") }
-    var type by rememberSaveable { mutableStateOf(UserType.ALUMNO.name) }
     var tried by remember { mutableStateOf(false) }
 
     val nameErr = if (tried && name.isBlank()) "Escribe tu nombre" else null
@@ -115,15 +114,7 @@ fun RegisterScreen(onBack: () -> Unit, onSuccess: () -> Unit, vm: AuthViewModel 
             if (emailErr == null) Text("Dominios válidos: ${AppConfig.ALLOWED_DOMAINS.joinToString(", ")}", color = RColors.Muted, style = MaterialTheme.typography.bodySmall)
             RutitasField(pass, { pass = it }, "Contraseña", password = true, error = passErr)
             RutitasField(confirm, { confirm = it }, "Confirmar contraseña", password = true, error = confErr)
-            if (AppConfig.DEMO_MODE) {
-                Text("Soy", style = MaterialTheme.typography.titleMedium)
-                ChipGroup(
-                    UserType.entries.map { it.label },
-                    setOf(UserType.valueOf(type).label)
-                ) { label ->
-                    type = UserType.entries.first { it.label == label }.name
-                }
-            } else {
+            if (AppConfig.DEMO_MODE) { Text("Registro exclusivo para alumnos", style = MaterialTheme.typography.bodyMedium) } else {
                 Text(
                     "El tipo de cuenta y los permisos se asignan desde el servidor.",
                     color = RColors.Muted,
@@ -141,7 +132,7 @@ fun RegisterScreen(onBack: () -> Unit, onSuccess: () -> Unit, vm: AuthViewModel 
                 tried = true
                 if (name.isNotBlank() && android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches() &&
                     AppConfig.isInstitutionalEmail(email) && pass.length >= minPassword && confirm == pass
-                ) vm.register(name, email, pass, UserType.valueOf(type), onSuccess)
+                ) vm.register(name, email, pass, UserType.ALUMNO, onSuccess)
             })
             Spacer(Modifier.height(16.dp))
         }

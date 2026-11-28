@@ -118,8 +118,8 @@ fun ReserveScreen(
     val loading by vm.loading.collectAsStateWithLifecycle()
     var seats by rememberSaveable { mutableIntStateOf(1) }
     var pickup by rememberSaveable { mutableStateOf<String?>(null) }
-    var shiftName by rememberSaveable { mutableStateOf(session.shift.name) }
-    var directionName by rememberSaveable { mutableStateOf(TripDirection.ENTRADA.name) }
+
+
     var error by remember { mutableStateOf<String?>(null) }
     Scaffold(topBar = { RutitasTopBar("Reserva", onBack) }, containerColor = MaterialTheme.colorScheme.background) { pad ->
         val r = route
@@ -133,18 +133,23 @@ fun ReserveScreen(
                 SummaryRow("Ruta", r.title)
                 SummaryRow("Hora", "${r.departure} → ${r.arrival}")
                 SummaryRow("Conductor", r.driverName)
+                SummaryRow("Turno", r.shift?.label ?: "Sin clasificar")
+                SummaryRow("Tipo de viaje", r.direction?.label ?: "Sin clasificar")
             }
             Text("Punto de encuentro", style = MaterialTheme.typography.titleMedium)
             MeetingPointsSection(route = r, selected = point, onPointClick = { pickup = it })
-            Text("Tu horario", style = MaterialTheme.typography.titleMedium)
-            ChipGroup(Shift.entries.map { it.label }, setOf(Shift.valueOf(shiftName).label)) { label ->
-                shiftName = Shift.entries.first { it.label == label }.name
+            Text(
+                "Condiciones definidas por el conductor",
+                color = RColors.Muted,
+                style = MaterialTheme.typography.bodySmall
+            )
+            if (r.shift == null || r.direction == null) {
+                Text(
+                    "Esta ruta aun no tiene turno o tipo de viaje. No admite reservas nuevas.",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
-            Text("Tipo de viaje", style = MaterialTheme.typography.titleMedium)
-            ChipGroup(TripDirection.entries.map { it.label }, setOf(TripDirection.valueOf(directionName).label)) { label ->
-                directionName = TripDirection.entries.first { it.label == label }.name
-            }
-            Text(TripDirection.valueOf(directionName).hint, color = RColors.Muted, style = MaterialTheme.typography.bodySmall)
             InfoCard {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Lugares", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
@@ -160,9 +165,13 @@ fun ReserveScreen(
             }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             if (session.isDisabled) DisabledBanner(onDetails = onDisabled)
-            PrimaryButton("Confirmar reserva", loading = loading, enabled = !session.isDisabled && r.isBookable, onClick = {
+            PrimaryButton("Confirmar reserva", loading = loading, enabled = !session.isDisabled && r.isBookable && r.shift != null && r.direction != null, onClick = {
                 error = null
-                vm.reserve(point, seats, Shift.valueOf(shiftName), TripDirection.valueOf(directionName), onConfirmed) { error = it }
+                if (r.shift == null || r.direction == null) {
+                    error = "Esta ruta aun no tiene clasificacion."
+                } else {
+                    vm.reserve(point, seats, onConfirmed) { error = it }
+                }
             })
         }
     }
